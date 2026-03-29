@@ -1,0 +1,11 @@
+const express = require('express');
+const router = express.Router();
+const { getOverview, getPayrollTrends, getDepartmentSalary, getCompanyComparison, getComplianceStatus, getAttendanceSummary } = require('../controllers/analyticsController');
+const { protect } = require('../middleware/authMiddleware');
+router.get('/overview', protect, getOverview);
+router.get('/payroll-trends', protect, getPayrollTrends);
+router.get('/department-salary', protect, getDepartmentSalary);
+router.get('/company-comparison', protect, getCompanyComparison);
+router.get('/compliance-status', protect, getComplianceStatus);
+router.get('/attendance-summary', protect, getAttendanceSummary);
+module.exports = router;

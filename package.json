@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "exceljs": "^4.4.0",
+    "express-validator": "^7.3.1",
+    "morgan": "^1.10.1",
+    "pdfkit": "^0.18.0"
+  }
+}

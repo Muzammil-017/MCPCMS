@@ -1,0 +1,10 @@
+const express = require('express');
+const router = express.Router();
+const { createCompany, getCompanies, getCompany, updateCompany, deleteCompany } = require('../controllers/companyController');
+const { protect } = require('../middleware/authMiddleware');
+router.post('/', protect, createCompany);
+router.get('/', protect, getCompanies);
+router.get('/:id', protect, getCompany);
+router.put('/:id', protect, updateCompany);
+router.delete('/:id', protect, deleteCompany);
+module.exports = router;
