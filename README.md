@@ -1,165 +1,190 @@
-# MCPCMS — Multi-Company Payroll & Compliance Management System
-### Phase 1 — Full Stack MERN Project
+# 🏥 MCPCMS — Multi-Campus Payroll & Compliance Management System
+
+> **Final Year CSE Project** | Full-Stack Web Application | v2.0.0
+
+![Node.js](https://img.shields.io/badge/Node.js-18+-green?style=flat-square&logo=node.js)
+![React](https://img.shields.io/badge/React-18-blue?style=flat-square&logo=react)
+![MongoDB](https://img.shields.io/badge/MongoDB-6+-green?style=flat-square&logo=mongodb)
+![Express](https://img.shields.io/badge/Express-4-black?style=flat-square&logo=express)
+![License](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)
 
 ---
 
-## 📁 Folder Structure
+## 📋 Table of Contents
+
+- [About](#about)
+- [Features](#features)
+- [Tech Stack](#tech-stack)
+- [Project Structure](#project-structure)
+- [Getting Started](#getting-started)
+- [Environment Variables](#environment-variables)
+- [API Endpoints](#api-endpoints)
+- [Screenshots](#screenshots)
+- [Author](#author)
+
+---
+
+## 📖 About
+
+MCPCMS is a full-stack web application designed to manage payroll, compliance, and HR operations across multiple campuses. Built as a Final Year Computer Science Engineering project, it provides an intuitive dashboard for administrators to oversee departments, salaries, attendance, and compliance status in real time.
+
+---
+
+## ✨ Features
+
+- 🔐 **JWT-based Authentication** — Secure login system with role-based access control
+- 📊 **Analytics Dashboard** — Real-time overview of payroll trends, department salaries, and compliance status
+- 🏢 **Multi-Campus Support** — Compare and manage data across different campuses
+- 👥 **Department Management** — Track employees across departments
+- 💰 **Payroll Management** — Monitor salary trends and payroll processing
+- ✅ **Compliance Tracking** — Monitor and report compliance status
+- 📅 **Attendance Summary** — View attendance data across the organization
+- 📱 **Responsive UI** — Works across desktop and mobile screens
+
+---
+
+## 🛠️ Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| **Frontend** | React 18, React Router, Axios |
+| **Backend** | Node.js, Express.js |
+| **Database** | MongoDB, Mongoose |
+| **Authentication** | JWT (JSON Web Tokens) |
+| **Styling** | CSS3 / Tailwind |
+| **Dev Tools** | VS Code, Postman, Git |
+
+---
+
+## 📁 Project Structure
 
 ```
 mcpcms/
 ├── backend/
-│   ├── config/          → MongoDB connection (db.js)
-│   ├── controllers/     → Route handlers (auth, company, employee, salary, payroll)
-│   ├── middleware/      → JWT auth middleware
-│   ├── models/          → Mongoose schemas (Company, User, Employee, SalaryStructure, Payroll)
-│   ├── routes/          → Express route definitions
-│   ├── services/        → Payroll calculation engine (payrollService.js)
-│   ├── utils/           → (reserved for helpers)
-│   └── server.js        → Entry point
-└── frontend/
-    ├── public/
-    └── src/
-        ├── components/  → Navbar, PrivateRoute
-        ├── context/     → AuthContext (global user state)
-        ├── pages/       → Login, Dashboard, Employees, Payroll
-        └── services/    → api.js (Axios calls)
+│   ├── config/           # Database & app configuration
+│   ├── controllers/      # Route handler logic
+│   ├── middleware/        # Auth & error middleware
+│   ├── models/           # Mongoose data models
+│   ├── routes/           # API route definitions
+│   ├── services/         # Business logic layer
+│   ├── .env.example      # Sample environment variables
+│   ├── package.json
+│   └── server.js         # App entry point
+│
+├── frontend/
+│   ├── public/
+│   └── src/
+│       ├── components/   # Reusable UI components
+│       ├── context/      # React context (global state)
+│       ├── pages/        # Page-level components
+│       ├── services/     # API service calls (api.js)
+│       ├── App.js
+│       └── index.js
+│
+├── .gitignore
+└── README.md
 ```
 
 ---
 
-## ⚙️ Backend Setup
+## 🚀 Getting Started
 
-### 1. Install dependencies
+### Prerequisites
+
+Make sure you have the following installed:
+
+- [Node.js](https://nodejs.org/) v18+
+- [MongoDB](https://www.mongodb.com/) (local or Atlas)
+- [Git](https://git-scm.com/)
+
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/YOUR_USERNAME/mcpcms.git
+cd mcpcms
+```
+
+### 2. Setup the Backend
+
 ```bash
 cd backend
 npm install
 ```
 
-### 2. Create `.env` file (copy from `.env.example`)
-```
-PORT=5000
-MONGO_URI=mongodb+srv://<user>:<pass>@cluster0.mongodb.net/mcpcms
-JWT_SECRET=your_secret_key
-```
-> Get free MongoDB Atlas cluster at https://cloud.mongodb.com
+Create a `.env` file (copy from `.env.example`):
 
-### 3. Run backend
 ```bash
-npm run dev      # development (nodemon)
-npm start        # production
+copy .env.example .env      # Windows
+cp .env.example .env        # Mac/Linux
 ```
 
----
+Fill in your environment variables (see [Environment Variables](#environment-variables) below).
 
-## ⚛️ Frontend Setup
+Start the backend server:
 
-### 1. Install dependencies
+```bash
+npm start
+# Server runs on http://localhost:5000
+```
+
+### 3. Setup the Frontend
+
+Open a new terminal:
+
 ```bash
 cd frontend
 npm install
-```
-
-### 2. Start React app
-```bash
 npm start
+# App runs on http://localhost:3000
 ```
-> Runs on http://localhost:3000 — proxies API calls to localhost:5000
 
----
+### 4. Create Admin Account
 
-## 🧪 Testing with Postman
+Since there's no registration UI, use Postman or curl:
 
-### Step 1 — Register Admin user
-```
+```bash
 POST http://localhost:5000/api/auth/register
-Body: { "name":"Admin", "email":"admin@test.com", "password":"123456", "role":"Admin" }
-```
 
-### Step 2 — Login to get JWT token
-```
-POST http://localhost:5000/api/auth/login
-Body: { "email":"admin@test.com", "password":"123456" }
-```
-> Copy the token from the response. Add it to all further requests:
-> Header: `Authorization: Bearer <token>`
-
-### Step 3 — Create Company
-```
-POST http://localhost:5000/api/company
-Body: { "name":"TechCorp", "email":"info@techcorp.com", "industry":"IT" }
-```
-
-### Step 4 — Add Employee
-```
-POST http://localhost:5000/api/employee
-Body: { "name":"Ravi Kumar", "email":"ravi@techcorp.com", "department":"Engineering", "position":"Developer", "companyId":"<companyId>" }
-```
-
-### Step 5 — Assign Salary Structure
-```
-POST http://localhost:5000/api/salary-structure
-Body: { "employeeId":"<empId>", "basicSalary":30000, "hra":5000, "allowances":3000, "deductions":500 }
-```
-
-### Step 6 — Run Payroll
-```
-POST http://localhost:5000/api/run-payroll
-Body: { "companyId":"<companyId>", "payrollMonth":"2024-06" }
-```
-
-### Step 7 — View Payroll
-```
-GET http://localhost:5000/api/payroll
-GET http://localhost:5000/api/payroll?month=2024-06
+{
+  "name": "Admin",
+  "email": "admin@company.com",
+  "password": "yourpassword",
+  "role": "admin"
+}
 ```
 
 ---
 
-## 💰 Payroll Calculation Formula
+## 🔐 Environment Variables
 
-| Component     | Formula                          |
-|---------------|----------------------------------|
-| Gross Salary  | Basic + HRA + Allowances         |
-| PF Deduction  | 12% of Gross                     |
-| ESI Deduction | 0.75% of Gross                   |
-| Net Salary    | Gross − PF − ESI − Other Deductions |
+Create a `.env` file inside the `backend/` folder with the following:
 
----
+```env
+MONGO_URI=mongodb://localhost:27017/mcpcms
+JWT_SECRET=your_jwt_secret_here
+PORT=5000
+NODE_ENV=development
+```
 
-## 🔐 API Endpoints Summary
-
-| Method | Route                  | Description              | Auth |
-|--------|------------------------|--------------------------|------|
-| POST   | /api/auth/register     | Register user            | No   |
-| POST   | /api/auth/login        | Login                    | No   |
-| POST   | /api/company           | Create company           | Yes  |
-| GET    | /api/company           | Get all companies        | Yes  |
-| POST   | /api/employee          | Add employee             | Yes  |
-| GET    | /api/employees         | Get all employees        | Yes  |
-| PUT    | /api/employee/:id      | Update employee          | Yes  |
-| DELETE | /api/employee/:id      | Delete employee          | Yes  |
-| POST   | /api/salary-structure  | Assign salary structure  | Yes  |
-| POST   | /api/run-payroll       | Run payroll for company  | Yes  |
-| GET    | /api/payroll           | View payroll records     | Yes  |
+> ⚠️ **Never commit your `.env` file to GitHub.** It is listed in `.gitignore` for security.
 
 ---
 
-## 🚀 Deployment
+## 📡 API Endpoints
 
-| Layer    | Platform        |
-|----------|-----------------|
-| Frontend | Vercel          |
-| Backend  | Render          |
-| Database | MongoDB Atlas   |
+### Auth
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/auth/register` | Register a new user |
+| POST | `/api/auth/login` | Login and receive JWT token |
 
-> On Render, set environment variables: MONGO_URI, JWT_SECRET, PORT
-> On Vercel, update `proxy` in package.json to backend Render URL
+### Analytics
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/analytics/overview` | Dashboard overview stats |
+| GET | `/api/analytics/payroll-trends` | Payroll trend data |
+| GET | `/api/analytics/department-salary` | Salary by department |
+| GET | `/api/analytics/company-comparison` | Multi-campus comparison |
+| GET | `/api/analytics/compliance-status` | Compliance overview |
+| GET | `/api/analytics/attendance-summary` | Attendance data |
 
----
-
-## 📌 Phase 2 (Future)
-- Attendance Management
-- Compliance Validation Engine
-- Payslip PDF Generation (pdfkit)
-- Payroll Reports & Analytics Dashboard
-- Multi-tenant improvements
