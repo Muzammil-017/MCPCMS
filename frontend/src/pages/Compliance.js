@@ -5,46 +5,66 @@ import { getCompanies, saveCompliance, getCompliance, autoValidateCompliance } f
 const SC = { Compliant: '#2e7d32', 'Non-Compliant': '#c62828', Partial: '#e65100', 'Not Checked': '#888' };
 
 const CHECKS = [
-  { key: 'pfFiled', label: 'PF Filed', desc: 'Provident Fund deposited with EPFO', icon: '🏦' },
-  { key: 'esiFiled', label: 'ESI Filed', desc: 'Employee State Insurance submitted', icon: '🏥' },
-  { key: 'tdsDeducted', label: 'TDS Deducted', desc: 'Tax Deducted at Source processed', icon: '💸' },
-  { key: 'professionalTaxFiled', label: 'Professional Tax', desc: 'State professional tax submitted', icon: '📜' },
-  { key: 'minimumWageCompliance', label: 'Minimum Wage', desc: 'All employees at or above minimum wage', icon: '💰' },
-  { key: 'labourWelfareFund', label: 'Labour Welfare Fund', desc: 'LWF contribution deposited', icon: '🤝' },
+  { key: 'pfFiled',               label: 'PF Filed',           desc: 'Provident Fund deposited with EPFO',      icon: '🏦' },
+  { key: 'esiFiled',              label: 'ESI Filed',           desc: 'Employee State Insurance submitted',      icon: '🏥' },
+  { key: 'tdsDeducted',           label: 'TDS Deducted',        desc: 'Tax Deducted at Source processed',        icon: '💸' },
+  { key: 'professionalTaxFiled',  label: 'Professional Tax',    desc: 'State professional tax submitted',        icon: '📜' },
+  { key: 'minimumWageCompliance', label: 'Minimum Wage',        desc: 'All employees at or above minimum wage',  icon: '💰' },
+  { key: 'labourWelfareFund',     label: 'Labour Welfare Fund', desc: 'LWF contribution deposited',             icon: '🤝' },
 ];
 
-const empty = { pfFiled: false, esiFiled: false, tdsDeducted: false, professionalTaxFiled: false, minimumWageCompliance: false, labourWelfareFund: false, remarks: '' };
+const empty = {
+  pfFiled: false,
+  esiFiled: false,
+  tdsDeducted: false,
+  professionalTaxFiled: false,
+  minimumWageCompliance: false,
+  labourWelfareFund: false,
+  remarks: ''
+};
 
 export default function Compliance() {
-  const [companies, setCompanies] = useState([]);
-  const [records, setRecords] = useState([]);
-  const [companyId, setCompanyId] = useState('');
-  const [month, setMonth] = useState(new Date().toISOString().substring(0, 7));
-  const [form, setForm] = useState(empty);
-  const [validation, setValidation] = useState(null);
-  const [msg, setMsg] = useState({ text: '', type: 'success' });
-  const [loading, setLoading] = useState(false);
+  const [companies,    setCompanies]    = useState([]);
+  const [records,      setRecords]      = useState([]);
+  const [companyId,    setCompanyId]    = useState('');
+  const [month,        setMonth]        = useState(new Date().toISOString().substring(0, 7));
+  const [form,         setForm]         = useState(empty);
+  const [validation,   setValidation]   = useState(null);
+  const [msg,          setMsg]          = useState({ text: '', type: 'success' });
+  const [loading,      setLoading]      = useState(false);
   const [filterStatus, setFilterStatus] = useState('');
 
-  const toast = (text, type = 'success') => { setMsg({ text, type }); setTimeout(() => setMsg({ text: '' }), 3000); };
+  const toast = (text, type = 'success') => {
+    setMsg({ text, type });
+    setTimeout(() => setMsg({ text: '' }), 3000);
+  };
+
   const load = async () => {
-    const [c, r] = await Promise.all([getCompanies(), getCompliance(filterStatus ? { status: filterStatus } : {})]);
+    const [c, r] = await Promise.all([
+      getCompanies(),
+      getCompliance(filterStatus ? { status: filterStatus } : {})
+    ]);
     setCompanies(c.data.companies || c.data);
     setRecords(r.data.records || r.data);
   };
+
   useEffect(() => { load(); }, [filterStatus]);
 
-  const passedCount = CHECKS.filter(c => form[c.key]).length;
-  const compliance = passedCount === CHECKS.length ? 'Compliant' : passedCount === 0 ? 'Non-Compliant' : 'Partial';
+  const passedCount  = CHECKS.filter(c => form[c.key]).length;
+  const compliance   = passedCount === CHECKS.length ? 'Compliant' : passedCount === 0 ? 'Non-Compliant' : 'Partial';
 
   const handleSave = async () => {
     if (!companyId) return toast('❌ Select a company', 'error');
     setLoading(true);
     try {
       await saveCompliance({ companyId, month, ...form });
-      toast('✅ Compliance record saved!'); load();
-    } catch (err) { toast('❌ ' + (err.response?.data?.message || 'Error'), 'error'); }
-    finally { setLoading(false); }
+      toast('✅ Compliance record saved!');
+      load();
+    } catch (err) {
+      toast('❌ ' + (err.response?.data?.message || 'Error'), 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleValidate = async () => {
@@ -52,21 +72,53 @@ export default function Compliance() {
     try {
       const r = await autoValidateCompliance(companyId, month);
       setValidation(r.data);
-    } catch { toast('❌ Validation error', 'error'); }
+
+      // ✅ FIX: Sync ALL relevant checkboxes from backend flags
+      // Previously only minimumWageCompliance was synced — TDS/PF/ESI were left
+      // as whatever the user had manually toggled, causing false positives.
+      const { flags } = r.data;
+      setForm(prev => ({
+        ...prev,
+        pfFiled:               flags.pfOk,
+        esiFiled:              flags.esiOk,
+        tdsDeducted:           flags.tdsOk,
+        minimumWageCompliance: flags.minWageOk,
+        // NOTE: professionalTaxFiled and labourWelfareFund are manual-only —
+        // no automated data available to auto-determine them, so leave as-is.
+      }));
+
+    } catch {
+      toast('❌ Validation error', 'error');
+    }
   };
+
+  // ✅ FIX: Filter summary counts by selected company (if any)
+  // Previously used all `records` globally which caused misleading counts
+  // (e.g. showing Compliant:1 + Non-Compliant:1 for a single Partial company)
+  const summaryRecords = companyId
+    ? records.filter(r => r.companyId?._id === companyId || r.companyId === companyId)
+    : records;
 
   return (
     <div style={{ background: '#f0f2f8', minHeight: '100vh' }}>
       <Navbar />
       <div style={S.container}>
         <div style={S.header}>
-          <div><h2 style={S.title}>✅ Compliance Management</h2><p style={S.sub}>Track statutory compliance across all companies</p></div>
+          <div>
+            <h2 style={S.title}>✅ Compliance Management</h2>
+            <p style={S.sub}>Track statutory compliance across all companies</p>
+          </div>
         </div>
 
-        {msg.text && <div style={{ ...S.toast, background: msg.type === 'error' ? '#ffebee' : '#e8f5e9', color: msg.type === 'error' ? '#c62828' : '#2e7d32' }}>{msg.text}</div>}
+        {msg.text && (
+          <div style={{ ...S.toast, background: msg.type === 'error' ? '#ffebee' : '#e8f5e9', color: msg.type === 'error' ? '#c62828' : '#2e7d32' }}>
+            {msg.text}
+          </div>
+        )}
 
         <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '1.5rem', marginBottom: '1.25rem' }}>
-          {/* Left: Checklist Form */}
+
+          {/* ── Left: Checklist Form ── */}
           <div style={S.card}>
             <h3 style={S.cardTitle}>📋 Compliance Checklist</h3>
 
@@ -74,14 +126,14 @@ export default function Compliance() {
             <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.25rem' }}>
               <div style={{ flex: 1 }}>
                 <label style={S.label}>Company *</label>
-                <select style={S.input} value={companyId} onChange={e => setCompanyId(e.target.value)}>
+                <select style={S.input} value={companyId} onChange={e => { setCompanyId(e.target.value); setValidation(null); }}>
                   <option value="">Select Company</option>
                   {companies.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
                 </select>
               </div>
               <div>
                 <label style={S.label}>Month *</label>
-                <input style={S.input} type="month" value={month} onChange={e => setMonth(e.target.value)} />
+                <input style={S.input} type="month" value={month} onChange={e => { setMonth(e.target.value); setValidation(null); }} />
               </div>
             </div>
 
@@ -100,7 +152,8 @@ export default function Compliance() {
             {/* Checks */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
               {CHECKS.map(({ key, label, desc, icon }) => (
-                <div key={key} onClick={() => setForm(f => ({ ...f, [key]: !f[key] }))}
+                <div key={key}
+                  onClick={() => setForm(f => ({ ...f, [key]: !f[key] }))}
                   style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.75rem 1rem', borderRadius: '10px', cursor: 'pointer', border: `1.5px solid ${form[key] ? '#2e7d32' : '#e0e0e0'}`, background: form[key] ? '#e8f5e9' : '#fafafa', transition: 'all 0.2s' }}>
                   <div style={{ width: '22px', height: '22px', borderRadius: '5px', border: `2px solid ${form[key] ? '#2e7d32' : '#ccc'}`, background: form[key] ? '#2e7d32' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '0.8rem', color: '#fff' }}>
                     {form[key] ? '✓' : ''}
@@ -114,16 +167,24 @@ export default function Compliance() {
               ))}
             </div>
 
-            <textarea style={{ ...S.input, width: '100%', marginTop: '1rem', height: '60px', resize: 'vertical', boxSizing: 'border-box' }}
-              placeholder="Remarks / Notes (optional)" value={form.remarks} onChange={e => setForm({ ...form, remarks: e.target.value })} />
+            <textarea
+              style={{ ...S.input, width: '100%', marginTop: '1rem', height: '60px', resize: 'vertical', boxSizing: 'border-box' }}
+              placeholder="Remarks / Notes (optional)"
+              value={form.remarks}
+              onChange={e => setForm({ ...form, remarks: e.target.value })}
+            />
 
             <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem' }}>
-              <button style={{ ...S.btn, flex: 1 }} onClick={handleSave} disabled={loading}>{loading ? 'Saving...' : '💾 Save Compliance'}</button>
-              <button style={{ ...S.btn, background: '#1565c0' }} onClick={handleValidate}>🔍 Auto Validate</button>
+              <button style={{ ...S.btn, flex: 1 }} onClick={handleSave} disabled={loading}>
+                {loading ? 'Saving...' : '💾 Save Compliance'}
+              </button>
+              <button style={{ ...S.btn, background: '#1565c0' }} onClick={handleValidate}>
+                🔍 Auto Validate
+              </button>
             </div>
           </div>
 
-          {/* Right: Validation Result */}
+          {/* ── Right: Validation Result + Summary ── */}
           <div>
             {validation ? (
               <div style={S.card}>
@@ -133,15 +194,16 @@ export default function Compliance() {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
                   {[
-                    ['Total Employees', validation.totalEmployees],
+                    ['Total Employees',  validation.totalEmployees],
                     ['Payroll Processed', validation.payrollProcessed],
-                    ['Total PF', `₹${(validation.totalPF || 0).toLocaleString('en-IN')}`],
+                    ['Total PF',  `₹${(validation.totalPF  || 0).toLocaleString('en-IN')}`],
                     ['Total ESI', `₹${(validation.totalESI || 0).toLocaleString('en-IN')}`],
                     ['Total TDS', `₹${(validation.totalTDS || 0).toLocaleString('en-IN')}`],
                     ['Below Min Wage', validation.belowMinWage],
                   ].map(([l, v]) => (
                     <div key={l} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.4rem 0', borderBottom: '1px solid #f0f0f0', fontSize: '0.85rem' }}>
-                      <span style={{ color: '#666' }}>{l}</span><strong>{v}</strong>
+                      <span style={{ color: '#666' }}>{l}</span>
+                      <strong style={{ color: l === 'Below Min Wage' && v > 0 ? '#c62828' : 'inherit' }}>{v}</strong>
                     </div>
                   ))}
                 </div>
@@ -149,7 +211,9 @@ export default function Compliance() {
                   <div>
                     <div style={{ fontWeight: '700', color: '#c62828', fontSize: '0.85rem', marginBottom: '0.5rem' }}>⚠ Issues Found:</div>
                     {validation.issues.map((issue, i) => (
-                      <div key={i} style={{ background: '#ffebee', color: '#c62828', padding: '0.5rem 0.75rem', borderRadius: '7px', fontSize: '0.82rem', marginBottom: '0.4rem' }}>• {issue}</div>
+                      <div key={i} style={{ background: '#ffebee', color: '#c62828', padding: '0.5rem 0.75rem', borderRadius: '7px', fontSize: '0.82rem', marginBottom: '0.4rem' }}>
+                        • {issue}
+                      </div>
                     ))}
                   </div>
                 )}
@@ -161,17 +225,23 @@ export default function Compliance() {
               </div>
             )}
 
-            {/* Quick Stats */}
+            {/* ✅ FIX: Compliance Summary now filtered by selected company */}
             <div style={S.card}>
-              <h3 style={S.cardTitle}>📊 Compliance Summary</h3>
+              <h3 style={S.cardTitle}>
+                📊 Compliance Summary
+                <span style={{ fontSize: '0.72rem', fontWeight: '400', color: '#888', marginLeft: '0.5rem' }}>
+                  {companyId ? '(this company, all months)' : '(all companies)'}
+                </span>
+              </h3>
               {['Compliant', 'Partial', 'Non-Compliant'].map(status => {
-                const count = records.filter(r => r.status === status).length;
+                const count = summaryRecords.filter(r => r.status === status).length;
+                const total = summaryRecords.length;
                 return (
                   <div key={status} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.6rem' }}>
                     <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: SC[status] }} />
                     <span style={{ flex: 1, fontSize: '0.85rem' }}>{status}</span>
                     <div style={{ background: '#f0f0f0', borderRadius: '99px', height: '6px', flex: 3 }}>
-                      <div style={{ background: SC[status], height: '100%', borderRadius: '99px', width: records.length ? `${(count / records.length) * 100}%` : '0%' }} />
+                      <div style={{ background: SC[status], height: '100%', borderRadius: '99px', width: total ? `${(count / total) * 100}%` : '0%' }} />
                     </div>
                     <strong style={{ fontSize: '0.85rem', minWidth: '24px', textAlign: 'right' }}>{count}</strong>
                   </div>
@@ -181,7 +251,7 @@ export default function Compliance() {
           </div>
         </div>
 
-        {/* Records Table */}
+        {/* ── Records Table ── */}
         <div style={S.card}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
             <h3 style={{ margin: 0, color: '#1a237e', fontSize: '1rem' }}>📋 All Compliance Records ({records.length})</h3>
@@ -194,7 +264,9 @@ export default function Compliance() {
             <table style={S.table}>
               <thead>
                 <tr style={{ background: '#e8eaf6' }}>
-                  {['Company', 'Month', 'PF', 'ESI', 'TDS', 'Prof Tax', 'Min Wage', 'LWF', 'Status', 'Remarks'].map(h => <th key={h} style={S.th}>{h}</th>)}
+                  {['Company', 'Month', 'PF', 'ESI', 'TDS', 'Prof Tax', 'Min Wage', 'LWF', 'Status', 'Remarks'].map(h => (
+                    <th key={h} style={S.th}>{h}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
@@ -205,11 +277,23 @@ export default function Compliance() {
                     {['pfFiled', 'esiFiled', 'tdsDeducted', 'professionalTaxFiled', 'minimumWageCompliance', 'labourWelfareFund'].map(k => (
                       <td key={k} style={{ ...S.td, textAlign: 'center' }}>{r[k] ? '✅' : '❌'}</td>
                     ))}
-                    <td style={S.td}><span style={{ padding: '0.2rem 0.6rem', borderRadius: '20px', fontSize: '0.72rem', fontWeight: '700', background: SC[r.status] + '20', color: SC[r.status] }}>{r.status}</span></td>
-                    <td style={{ ...S.td, maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.remarks || '—'}</td>
+                    <td style={S.td}>
+                      <span style={{ padding: '0.2rem 0.6rem', borderRadius: '20px', fontSize: '0.72rem', fontWeight: '700', background: SC[r.status] + '20', color: SC[r.status] }}>
+                        {r.status}
+                      </span>
+                    </td>
+                    <td style={{ ...S.td, maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {r.remarks || '—'}
+                    </td>
                   </tr>
                 ))}
-                {!records.length && <tr><td colSpan={10} style={{ textAlign: 'center', padding: '2rem', color: '#aaa' }}>No compliance records yet.</td></tr>}
+                {!records.length && (
+                  <tr>
+                    <td colSpan={10} style={{ textAlign: 'center', padding: '2rem', color: '#aaa' }}>
+                      No compliance records yet.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -221,16 +305,16 @@ export default function Compliance() {
 
 const S = {
   container: { padding: '1.5rem 2rem', maxWidth: '1300px', margin: '0 auto' },
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem' },
-  title: { margin: 0, color: '#1a237e', fontSize: '1.4rem' },
-  sub: { margin: '0.2rem 0 0', color: '#666', fontSize: '0.85rem' },
-  card: { background: '#fff', borderRadius: '12px', padding: '1.5rem', boxShadow: '0 2px 8px rgba(0,0,0,0.07)', marginBottom: '1.25rem' },
+  header:    { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem' },
+  title:     { margin: 0, color: '#1a237e', fontSize: '1.4rem' },
+  sub:       { margin: '0.2rem 0 0', color: '#666', fontSize: '0.85rem' },
+  card:      { background: '#fff', borderRadius: '12px', padding: '1.5rem', boxShadow: '0 2px 8px rgba(0,0,0,0.07)', marginBottom: '1.25rem' },
   cardTitle: { margin: '0 0 1.1rem', color: '#1a237e', fontSize: '1.05rem' },
-  label: { display: 'block', fontSize: '0.72rem', fontWeight: '600', color: '#555', marginBottom: '0.25rem' },
-  input: { padding: '0.55rem 0.75rem', border: '1.5px solid #e0e0e0', borderRadius: '7px', fontSize: '0.85rem', width: '100%' },
-  btn: { padding: '0.6rem 1.25rem', background: '#1a237e', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '0.88rem', fontWeight: '600' },
-  table: { width: '100%', borderCollapse: 'collapse', fontSize: '0.83rem' },
-  th: { padding: '0.6rem 0.75rem', textAlign: 'left', fontSize: '0.73rem', color: '#1a237e', fontWeight: '600' },
-  td: { padding: '0.55rem 0.75rem' },
-  toast: { padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.88rem', fontWeight: '500' },
+  label:     { display: 'block', fontSize: '0.72rem', fontWeight: '600', color: '#555', marginBottom: '0.25rem' },
+  input:     { padding: '0.55rem 0.75rem', border: '1.5px solid #e0e0e0', borderRadius: '7px', fontSize: '0.85rem', width: '100%' },
+  btn:       { padding: '0.6rem 1.25rem', background: '#1a237e', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '0.88rem', fontWeight: '600' },
+  table:     { width: '100%', borderCollapse: 'collapse', fontSize: '0.83rem' },
+  th:        { padding: '0.6rem 0.75rem', textAlign: 'left', fontSize: '0.73rem', color: '#1a237e', fontWeight: '600' },
+  td:        { padding: '0.55rem 0.75rem' },
+  toast:     { padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.88rem', fontWeight: '500' },
 };

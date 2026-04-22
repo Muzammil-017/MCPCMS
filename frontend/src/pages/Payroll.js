@@ -11,160 +11,193 @@ export default function Payroll() {
   const [filterMonth, setFilterMonth] = useState('');
   const [filterCompany, setFilterCompany] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+  const [search, setSearch] = useState('');
   const [msg, setMsg] = useState({ text: '', type: 'success' });
   const [running, setRunning] = useState(false);
 
   const toast = (text, type = 'success') => { setMsg({ text, type }); setTimeout(() => setMsg({ text: '' }), 4000); };
 
   const load = async () => {
-    const [c, p] = await Promise.all([getCompanies(), getPayroll({ month: filterMonth, companyId: filterCompany, status: filterStatus })]);
-    setCompanies(c.data.companies || c.data);
-    setPayrolls(p.data.payrolls || p.data);
+    const [companyRes, payrollRes] = await Promise.all([getCompanies(), getPayroll({ month: filterMonth, companyId: filterCompany, status: filterStatus })]);
+    setCompanies(companyRes.data.companies || companyRes.data);
+    setPayrolls(payrollRes.data.payrolls || payrollRes.data);
   };
+
   useEffect(() => { load(); }, [filterMonth, filterCompany, filterStatus]);
 
-  const handleRun = async e => {
-    e.preventDefault();
-    if (!runForm.companyId) return toast('❌ Select a company', 'error');
+  const handleRun = async event => {
+    event.preventDefault();
+    if (!runForm.companyId) return toast('Select a company', 'error');
     setRunning(true);
     try {
-      const r = await runPayroll(runForm);
-      toast(`✅ ${r.data.message}`);
+      const response = await runPayroll(runForm);
+      toast(response.data.message);
       load();
-    } catch (err) { toast('❌ ' + (err.response?.data?.message || 'Error'), 'error'); }
-    finally { setRunning(false); }
+    } catch (err) {
+      toast(err.response?.data?.message || 'Error', 'error');
+    } finally {
+      setRunning(false);
+    }
   };
 
   const handleStatus = async (id, status) => {
     try {
       await updatePayrollStatus(id, status);
-      toast(`✅ Status updated to ${status}`);
+      toast(`Status updated to ${status}`);
       load();
-    } catch { toast('❌ Error updating status', 'error'); }
+    } catch {
+      toast('Error updating status', 'error');
+    }
   };
 
-  const handlePayslip = async (empId, month, name) => {
+  const handlePayslip = async (employeeId, month, name) => {
     try {
-      const r = await downloadPayslip(empId, month);
-      triggerDownload(r.data, `Payslip_${name}_${month}.pdf`);
-    } catch { toast('❌ Payslip not found', 'error'); }
+      const response = await downloadPayslip(employeeId, month);
+      triggerDownload(response.data, `Payslip_${name}_${month}.pdf`);
+    } catch {
+      toast('Payslip not found', 'error');
+    }
   };
 
   const handleExcel = async () => {
     try {
-      const r = await exportPayrollExcel({ month: filterMonth, companyId: filterCompany });
-      triggerDownload(r.data, `Payroll_${filterMonth || 'All'}.xlsx`);
-    } catch { toast('❌ Export failed', 'error'); }
+      const response = await exportPayrollExcel({ month: filterMonth, companyId: filterCompany });
+      triggerDownload(response.data, `Payroll_${filterMonth || 'All'}.xlsx`);
+    } catch {
+      toast('Export failed', 'error');
+    }
   };
 
+  const visiblePayrolls = payrolls.filter(item => [item.employeeId?.name, item.employeeId?.employeeCode, item.employeeId?.department, item.companyId?.name, item.payrollMonth].filter(Boolean).join(' ').toLowerCase().includes(search.toLowerCase()));
   const totals = {
-    gross: payrolls.reduce((s, p) => s + p.grossSalary, 0),
-    pf: payrolls.reduce((s, p) => s + p.pfDeduction, 0),
-    esi: payrolls.reduce((s, p) => s + p.esiDeduction, 0),
-    tds: payrolls.reduce((s, p) => s + p.tdsDeduction, 0),
-    net: payrolls.reduce((s, p) => s + p.netSalary, 0),
+    gross: visiblePayrolls.reduce((sum, item) => sum + item.grossSalary, 0),
+    pf: visiblePayrolls.reduce((sum, item) => sum + item.pfDeduction, 0),
+    esi: visiblePayrolls.reduce((sum, item) => sum + item.esiDeduction, 0),
+    tds: visiblePayrolls.reduce((sum, item) => sum + item.tdsDeduction, 0),
+    net: visiblePayrolls.reduce((sum, item) => sum + item.netSalary, 0),
   };
-
-  const fmt = n => `₹${Number(n).toLocaleString('en-IN', { minimumFractionDigits: 0 })}`;
+  const statusSummary = ['Processed', 'Paid', 'Hold'].map(status => ({
+    status,
+    count: visiblePayrolls.filter(item => item.status === status).length,
+    amount: visiblePayrolls.filter(item => item.status === status).reduce((sum, item) => sum + (item.netSalary || 0), 0),
+  }));
+  const fmt = value => `INR ${Number(value).toLocaleString('en-IN', { minimumFractionDigits: 0 })}`;
 
   return (
     <div style={{ background: '#f0f2f8', minHeight: '100vh' }}>
       <Navbar />
       <div style={S.container}>
         <div style={S.header}>
-          <div><h2 style={S.title}>💰 Payroll Processing</h2><p style={S.sub}>{payrolls.length} payroll records</p></div>
-          <button style={{ ...S.btn, background: '#2e7d32' }} onClick={handleExcel}>⬇ Export Excel</button>
+          <div><h2 style={S.title}>Payroll Processing</h2><p style={S.sub}>{visiblePayrolls.length} payroll records in view</p></div>
+          <button style={{ ...S.btn, background: '#2e7d32' }} onClick={handleExcel}>Export Excel</button>
         </div>
 
         {msg.text && <div style={{ ...S.toast, background: msg.type === 'error' ? '#ffebee' : '#e8f5e9', color: msg.type === 'error' ? '#c62828' : '#2e7d32' }}>{msg.text}</div>}
 
-        {/* Run Payroll */}
         <div style={S.card}>
-          <h3 style={S.cardTitle}>▶ Run Payroll</h3>
+          <h3 style={S.cardTitle}>Run Payroll</h3>
           <form onSubmit={handleRun} style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
             <div style={{ flex: 1, minWidth: '200px' }}>
               <label style={S.label}>Company *</label>
-              <select style={S.input} value={runForm.companyId} onChange={e => setRunForm({ ...runForm, companyId: e.target.value })} required>
+              <select style={S.input} value={runForm.companyId} onChange={event => setRunForm({ ...runForm, companyId: event.target.value })} required>
                 <option value="">Select Company</option>
-                {companies.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
+                {companies.map(company => <option key={company._id} value={company._id}>{company.name}</option>)}
               </select>
             </div>
             <div>
               <label style={S.label}>Payroll Month *</label>
-              <input style={S.input} type="month" value={runForm.payrollMonth} onChange={e => setRunForm({ ...runForm, payrollMonth: e.target.value })} required />
+              <input style={S.input} type="month" value={runForm.payrollMonth} onChange={event => setRunForm({ ...runForm, payrollMonth: event.target.value })} required />
             </div>
             <button style={{ ...S.btn, padding: '0.6rem 2rem' }} type="submit" disabled={running}>
-              {running ? '⏳ Processing...' : '▶ Run Payroll'}
+              {running ? 'Processing...' : 'Run Payroll'}
             </button>
           </form>
           <p style={{ margin: '0.75rem 0 0', color: '#888', fontSize: '0.78rem' }}>
-            ℹ Payroll uses attendance data for pro-rata calculation. PF capped at ₹1,800. ESI applied if gross ≤ ₹21,000.
+            Payroll uses attendance data for pro-rata calculation. PF is capped at INR 1,800 and ESI applies when gross salary is at or below INR 21,000.
           </p>
         </div>
 
-        {/* Totals */}
-        {payrolls.length > 0 && (
+        {visiblePayrolls.length > 0 && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '1rem', marginBottom: '1.25rem' }}>
-            {[['Gross', totals.gross, '#1a237e'], ['PF', totals.pf, '#6a1b9a'], ['ESI', totals.esi, '#1565c0'], ['TDS', totals.tds, '#e65100'], ['Net Payout', totals.net, '#2e7d32']].map(([l, v, c]) => (
-              <div key={l} style={{ background: '#fff', borderRadius: '10px', padding: '1rem', boxShadow: '0 2px 6px rgba(0,0,0,0.06)', borderTop: `3px solid ${c}`, textAlign: 'center' }}>
-                <div style={{ fontSize: '1.25rem', fontWeight: 'bold', color: c }}>{fmt(v)}</div>
-                <div style={{ fontSize: '0.75rem', color: '#666' }}>Total {l}</div>
+            {[['Gross', totals.gross, '#1a237e'], ['PF', totals.pf, '#6a1b9a'], ['ESI', totals.esi, '#1565c0'], ['TDS', totals.tds, '#e65100'], ['Net Payout', totals.net, '#2e7d32']].map(([label, value, color]) => (
+              <div key={label} style={{ background: '#fff', borderRadius: '10px', padding: '1rem', boxShadow: '0 2px 6px rgba(0,0,0,0.06)', borderTop: `3px solid ${color}`, textAlign: 'center' }}>
+                <div style={{ fontSize: '1.25rem', fontWeight: 'bold', color }}>{fmt(value)}</div>
+                <div style={{ fontSize: '0.75rem', color: '#666' }}>Total {label}</div>
               </div>
             ))}
           </div>
         )}
 
-        {/* Filters */}
+        {visiblePayrolls.length > 0 && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1.25rem' }}>
+            {statusSummary.map(item => (
+              <div key={item.status} style={{ background: '#fff', borderRadius: '10px', padding: '1rem', boxShadow: '0 2px 6px rgba(0,0,0,0.06)', borderLeft: `4px solid ${STATUS_C[item.status]}` }}>
+                <div style={{ fontSize: '1.15rem', fontWeight: '700', color: STATUS_C[item.status] }}>{item.count}</div>
+                <div style={{ fontSize: '0.8rem', color: '#475467', marginTop: '0.2rem' }}>{item.status} records</div>
+                <div style={{ fontSize: '0.75rem', color: '#98a2b3', marginTop: '0.25rem' }}>Net amount {fmt(item.amount)}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
         <div style={{ ...S.card, display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-end', padding: '1rem 1.5rem' }}>
-          <div><label style={S.label}>Filter Month</label>
-            <input style={S.input} type="month" value={filterMonth} onChange={e => setFilterMonth(e.target.value)} /></div>
-          <div><label style={S.label}>Company</label>
-            <select style={S.input} value={filterCompany} onChange={e => setFilterCompany(e.target.value)}>
+          <div>
+            <label style={S.label}>Search</label>
+            <input style={S.input} type="text" value={search} onChange={event => setSearch(event.target.value)} placeholder="Employee, code, company..." />
+          </div>
+          <div>
+            <label style={S.label}>Filter Month</label>
+            <input style={S.input} type="month" value={filterMonth} onChange={event => setFilterMonth(event.target.value)} />
+          </div>
+          <div>
+            <label style={S.label}>Company</label>
+            <select style={S.input} value={filterCompany} onChange={event => setFilterCompany(event.target.value)}>
               <option value="">All Companies</option>
-              {companies.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
-            </select></div>
-          <div><label style={S.label}>Status</label>
-            <select style={S.input} value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+              {companies.map(company => <option key={company._id} value={company._id}>{company.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={S.label}>Status</label>
+            <select style={S.input} value={filterStatus} onChange={event => setFilterStatus(event.target.value)}>
               <option value="">All Status</option>
-              {['Processed', 'Paid', 'Hold'].map(s => <option key={s}>{s}</option>)}
-            </select></div>
-          <button style={{ ...S.btn, background: '#666' }} onClick={() => { setFilterMonth(''); setFilterCompany(''); setFilterStatus(''); }}>Clear</button>
+              {['Processed', 'Paid', 'Hold'].map(status => <option key={status}>{status}</option>)}
+            </select>
+          </div>
+          <button style={{ ...S.btn, background: '#666' }} onClick={() => { setFilterMonth(''); setFilterCompany(''); setFilterStatus(''); setSearch(''); }}>Clear</button>
         </div>
 
-        {/* Table */}
         <div style={S.card}>
           <div style={{ overflowX: 'auto' }}>
             <table style={S.table}>
               <thead>
                 <tr style={{ background: '#e8eaf6' }}>
-                  {['Code', 'Employee', 'Dept', 'Month', 'Gross', 'PF', 'ESI', 'TDS', 'Net Salary', 'Days', 'Status', 'Actions'].map(h => <th key={h} style={S.th}>{h}</th>)}
+                  {['Code', 'Employee', 'Dept', 'Month', 'Gross', 'PF', 'ESI', 'TDS', 'Net Salary', 'Days', 'Status', 'Actions'].map(header => <th key={header} style={S.th}>{header}</th>)}
                 </tr>
               </thead>
               <tbody>
-                {payrolls.map(p => (
-                  <tr key={p._id} style={{ borderBottom: '1px solid #f0f0f0' }}>
-                    <td style={S.td}><span style={S.chip}>{p.employeeId?.employeeCode || '—'}</span></td>
-                    <td style={S.td}><strong>{p.employeeId?.name || '—'}</strong><br /><span style={{ fontSize: '0.7rem', color: '#888' }}>{p.companyId?.name}</span></td>
-                    <td style={S.td}>{p.employeeId?.department || '—'}</td>
-                    <td style={S.td}>{p.payrollMonth}</td>
-                    <td style={S.td}>{fmt(p.grossSalary)}</td>
-                    <td style={S.td}>{fmt(p.pfDeduction)}</td>
-                    <td style={S.td}>{fmt(p.esiDeduction)}</td>
-                    <td style={S.td}>{fmt(p.tdsDeduction)}</td>
-                    <td style={{ ...S.td, fontWeight: '700', color: '#2e7d32' }}>{fmt(p.netSalary)}</td>
-                    <td style={S.td}>{p.presentDays}/{p.workingDays}</td>
+                {visiblePayrolls.map(item => (
+                  <tr key={item._id} style={{ borderBottom: '1px solid #f0f0f0' }}>
+                    <td style={S.td}><span style={S.chip}>{item.employeeId?.employeeCode || '-'}</span></td>
+                    <td style={S.td}><strong>{item.employeeId?.name || '-'}</strong><br /><span style={{ fontSize: '0.7rem', color: '#888' }}>{item.companyId?.name}</span></td>
+                    <td style={S.td}>{item.employeeId?.department || '-'}</td>
+                    <td style={S.td}>{item.payrollMonth}</td>
+                    <td style={S.td}>{fmt(item.grossSalary)}</td>
+                    <td style={S.td}>{fmt(item.pfDeduction)}</td>
+                    <td style={S.td}>{fmt(item.esiDeduction)}</td>
+                    <td style={S.td}>{fmt(item.tdsDeduction)}</td>
+                    <td style={{ ...S.td, fontWeight: '700', color: '#2e7d32' }}>{fmt(item.netSalary)}</td>
+                    <td style={S.td}>{item.presentDays}/{item.workingDays}</td>
                     <td style={S.td}>
-                      <select value={p.status} onChange={e => handleStatus(p._id, e.target.value)}
-                        style={{ padding: '0.2rem 0.4rem', border: `1.5px solid ${STATUS_C[p.status]}`, borderRadius: '5px', color: STATUS_C[p.status], fontSize: '0.75rem', fontWeight: '600', background: STATUS_C[p.status] + '15', cursor: 'pointer' }}>
-                        {['Processed', 'Paid', 'Hold'].map(s => <option key={s}>{s}</option>)}
+                      <select value={item.status} onChange={event => handleStatus(item._id, event.target.value)} style={{ padding: '0.2rem 0.4rem', border: `1.5px solid ${STATUS_C[item.status]}`, borderRadius: '5px', color: STATUS_C[item.status], fontSize: '0.75rem', fontWeight: '600', background: `${STATUS_C[item.status]}15`, cursor: 'pointer' }}>
+                        {['Processed', 'Paid', 'Hold'].map(status => <option key={status}>{status}</option>)}
                       </select>
                     </td>
                     <td style={S.td}>
-                      <button style={S.pdfBtn} onClick={() => handlePayslip(p.employeeId?._id, p.payrollMonth, p.employeeId?.name)}>📄 PDF</button>
+                      <button style={S.pdfBtn} onClick={() => handlePayslip(item.employeeId?._id, item.payrollMonth, item.employeeId?.name)}>PDF</button>
                     </td>
                   </tr>
                 ))}
-                {!payrolls.length && <tr><td colSpan={12} style={{ textAlign: 'center', padding: '2rem', color: '#aaa' }}>No payroll records. Run payroll above.</td></tr>}
+                {!visiblePayrolls.length && <tr><td colSpan={12} style={{ textAlign: 'center', padding: '2rem', color: '#aaa' }}>No payroll records match the current filters.</td></tr>}
               </tbody>
             </table>
           </div>

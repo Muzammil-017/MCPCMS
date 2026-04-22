@@ -3,11 +3,15 @@ const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
 const connectDB = require('./config/db');
+const contactRoutes = require('./routes/contactRoutes');
 
 const app = express();
 
 // Connect DB
 connectDB();
+
+
+app.use('/api/contact', contactRoutes);
 
 // Middleware
 app.use(cors({ origin: '*', credentials: true }));

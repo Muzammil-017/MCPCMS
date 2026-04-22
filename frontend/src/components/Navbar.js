@@ -2,13 +2,14 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const links = [
-  { to: '/dashboard', label: '🏠 Dashboard' },
-  { to: '/companies', label: '🏢 Companies' },
-  { to: '/employees', label: '👥 Employees' },
-  { to: '/attendance', label: '📅 Attendance' },
-  { to: '/payroll', label: '💰 Payroll' },
-  { to: '/compliance', label: '✅ Compliance' },
-  { to: '/analytics', label: '📊 Analytics' },
+  { to: '/dashboard', label: 'Dashboard' },
+  { to: '/companies', label: 'Companies' },
+  { to: '/employees', label: 'Employees' },
+  { to: '/attendance', label: 'Attendance' },
+  { to: '/payroll', label: 'Payroll' },
+  { to: '/compliance', label: 'Compliance' },
+  { to: '/analytics', label: 'Analytics' },
+  { to: '/reports', label: 'Reports' },
 ];
 
 export default function Navbar() {
@@ -18,10 +19,12 @@ export default function Navbar() {
 
   return (
     <nav style={S.nav}>
-      <div style={S.brand}>⚡ MCPCMS</div>
+      <div style={S.brand}>MCPCMS</div>
       <div style={S.links}>
-        {links.map(l => (
-          <Link key={l.to} to={l.to} style={{ ...S.link, ...(pathname === l.to ? S.active : {}) }}>{l.label}</Link>
+        {links.map(link => (
+          <Link key={link.to} to={link.to} style={{ ...S.link, ...(pathname === link.to ? S.active : {}) }}>
+            {link.label}
+          </Link>
         ))}
       </div>
       <div style={S.user}>
@@ -35,7 +38,7 @@ export default function Navbar() {
 
 const S = {
   nav: { display: 'flex', alignItems: 'center', padding: '0 1.5rem', background: '#0d1b4b', color: '#fff', height: '56px', gap: '1rem', boxShadow: '0 2px 8px rgba(0,0,0,0.3)', position: 'sticky', top: 0, zIndex: 1000 },
-  brand: { fontSize: '1.15rem', fontWeight: 'bold', color: '#7986cb', whiteSpace: 'nowrap', marginRight: '1rem' },
+  brand: { fontSize: '1.15rem', fontWeight: 'bold', color: '#9fb3ff', whiteSpace: 'nowrap', marginRight: '1rem' },
   links: { display: 'flex', gap: '0.15rem', flex: 1, flexWrap: 'nowrap', overflowX: 'auto' },
   link: { color: '#b0bec5', textDecoration: 'none', fontSize: '0.78rem', padding: '0.4rem 0.6rem', borderRadius: '6px', whiteSpace: 'nowrap', transition: 'all 0.2s' },
   active: { background: '#1a237e', color: '#fff' },
