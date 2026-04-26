@@ -11,6 +11,7 @@ import Compliance from './pages/Compliance';
 import Analytics from './pages/Analytics';
 import Reports from './pages/Reports';
 import ContactSales from "./pages/ContactSales";
+import EmployeeDashboard from './pages/EmployeeDashboard';
 
 function App() {
   return (
@@ -19,6 +20,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Login />} />
           <Route path="/contact-sales" element={<ContactSales />} />
+          <Route path="/employee" element={<EmployeeDashboard />} />
           <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
           <Route path="/companies" element={<PrivateRoute><Companies /></PrivateRoute>} />
           <Route path="/employees" element={<PrivateRoute><Employees /></PrivateRoute>} />

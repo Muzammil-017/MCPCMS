@@ -10,15 +10,13 @@ const app = express();
 // Connect DB
 connectDB();
 
-
-app.use('/api/contact', contactRoutes);
-
-// Middleware
+// ✅ Middleware FIRST
 app.use(cors({ origin: '*', credentials: true }));
 app.use(express.json());
 app.use(morgan('dev'));
 
-// ── Routes ──
+// ✅ Routes AFTER middleware
+app.use('/api/contact', contactRoutes);
 app.use('/api/auth',           require('./routes/authRoutes'));
 app.use('/api/company',        require('./routes/companyRoutes'));
 app.use('/api/employee',       require('./routes/employeeRoutes'));
@@ -30,6 +28,7 @@ app.use('/api/analytics',      require('./routes/analyticsRoutes'));
 app.use('/api/payslip',        require('./routes/payslipRoutes'));
 app.use('/api/reports',        require('./routes/reportRoutes'));
 app.use('/api',                require('./routes/payrollRoutes'));
+app.use('/api/employee-portal', require('./routes/employeePortalRoutes'));
 
 // Health
 app.get('/', (req, res) => res.json({ status: 'ok', message: 'MCPCMS API v2.0 ✅', timestamp: new Date() }));
@@ -44,4 +43,4 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`🚀 MCPCMS Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(` MCPCMS Server running on port ${PORT}`));

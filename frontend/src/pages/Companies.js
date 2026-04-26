@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import Navbar from '../components/Navbar';
 import { getCompanies, createCompany, updateCompany, deleteCompany } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 const empty = { name: '', email: '', phone: '', industry: '', address: '', gstNumber: '', panNumber: '' };
 
 export default function Companies() {
+  const { user } = useAuth();
   const [companies, setCompanies] = useState([]);
   const [form, setForm] = useState(empty);
   const [editing, setEditing] = useState(null);
@@ -30,6 +32,9 @@ export default function Companies() {
   const handleEdit = c => { setForm({ name: c.name, email: c.email, phone: c.phone || '', industry: c.industry, address: c.address || '', gstNumber: c.gstNumber || '', panNumber: c.panNumber || '' }); setEditing(c._id); setShowForm(true); };
   const handleDelete = async id => { if (!window.confirm('Delete this company?')) return; await deleteCompany(id); toast('Deleted'); load(); };
 
+  // Only super admin (no companyId) can add companies
+  const isSuperAdmin = !user?.companyId;
+
   const industries = ['IT', 'Manufacturing', 'Healthcare', 'Finance', 'Retail', 'Education', 'Construction', 'Other'];
 
   return (
@@ -37,16 +42,21 @@ export default function Companies() {
       <Navbar />
       <div style={S.container}>
         <div style={S.header}>
-          <div><h2 style={S.title}>🏢 Company Management</h2><p style={S.sub}>{companies.length} companies registered</p></div>
-          <button style={S.btn} onClick={() => { setForm(empty); setEditing(null); setShowForm(!showForm); }}>
-            {showForm ? '✕ Cancel' : '+ Add Company'}
-          </button>
+          <div>
+            <h2 style={S.title}>🏢 Company Management</h2>
+            <p style={S.sub}>{companies.length} companies registered</p>
+          </div>
+          {isSuperAdmin && (
+            <button style={S.btn} onClick={() => { setForm(empty); setEditing(null); setShowForm(!showForm); }}>
+              {showForm ? '✕ Cancel' : '+ Add Company'}
+            </button>
+          )}
         </div>
 
         {msg.text && <div style={{ ...S.toast, background: msg.type === 'error' ? '#ffebee' : '#e8f5e9', color: msg.type === 'error' ? '#c62828' : '#2e7d32' }}>{msg.text}</div>}
 
-        {/* Form */}
-        {showForm && (
+        {/* Form - only for super admin */}
+        {showForm && isSuperAdmin && (
           <div style={S.card}>
             <h3 style={S.cardTitle}>{editing ? 'Edit Company' : 'Add New Company'}</h3>
             <form onSubmit={handleSubmit} style={S.grid2}>
@@ -89,11 +99,11 @@ export default function Companies() {
                   <td style={S.td}>{c.panNumber || '—'}</td>
                   <td style={S.td}>
                     <button style={S.editBtn} onClick={() => handleEdit(c)}>✏ Edit</button>
-                    <button style={S.delBtn} onClick={() => handleDelete(c._id)}>🗑 Del</button>
+                    {isSuperAdmin && <button style={S.delBtn} onClick={() => handleDelete(c._id)}>🗑 Del</button>}
                   </td>
                 </tr>
               ))}
-              {!companies.length && <tr><td colSpan={7} style={{ textAlign: 'center', padding: '2rem', color: '#aaa' }}>No companies yet. Add one above.</td></tr>}
+              {!companies.length && <tr><td colSpan={7} style={{ textAlign: 'center', padding: '2rem', color: '#aaa' }}>No companies yet.</td></tr>}
             </tbody>
           </table>
         </div>

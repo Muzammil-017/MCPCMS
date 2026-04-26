@@ -18,5 +18,10 @@ const adminOnly = (req, res, next) => {
   if (req.user?.role !== 'Admin') return res.status(403).json({ message: 'Admin access only' });
   next();
 };
+const employeeOnly = (req, res, next) => {
+  if (!['Employee', 'Admin', 'HR'].includes(req.user?.role))
+    return res.status(403).json({ message: 'Access denied' });
+  next();
+};
 
-module.exports = { protect, adminOnly };
+module.exports = { protect, adminOnly, employeeOnly };

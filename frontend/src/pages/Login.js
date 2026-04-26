@@ -15,7 +15,11 @@ export default function Login() {
     try {
       const { data } = await loginUser(form);
       login({ ...data.user, token: data.token });
-      navigate('/dashboard');
+      if (data.user.role === 'Employee') {
+        navigate('/employee');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (err) { setError(err.response?.data?.message || 'Login failed'); }
     finally { setLoading(false); }
   };
@@ -70,7 +74,6 @@ export default function Login() {
             </button>
           </form>
 
-          {/* ✅ ADDED FEATURE (correct placement) */}
           <div style={{ marginTop: "12px", textAlign: "center" }}>
             <span style={{ fontSize: "13px", color: "#6b7280" }}>
               New company?{" "}

@@ -49,3 +49,11 @@ exports.getUsers = async (req, res) => {
     res.json({ success: true, users });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 };
+// PUT /api/auth/users/:id
+exports.updateUser = async (req, res) => {
+  try {
+    const user = await User.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true }).populate('companyId', 'name');
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+    res.json({ success: true, user });
+  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+};

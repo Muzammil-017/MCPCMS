@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 
 const employeeSchema = new mongoose.Schema({
+  userId:            { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   employeeCode:      { type: String, unique: true },
   name:              { type: String, required: true },
   email:             { type: String, required: true, unique: true, lowercase: true },
@@ -20,7 +21,6 @@ const employeeSchema = new mongoose.Schema({
   isActive:          { type: Boolean, default: true },
 }, { timestamps: true });
 
-// Auto-generate employee code
 employeeSchema.pre('save', async function(next) {
   if (!this.employeeCode) {
     const count = await mongoose.model('Employee').countDocuments();

@@ -1,11 +1,30 @@
 const Employee = require('../models/Employee');
 const SalaryStructure = require('../models/SalaryStructure');
+const User = require('../models/User');
 
 exports.createEmployee = async (req, res) => {
   try {
     if (await Employee.findOne({ email: req.body.email }))
       return res.status(400).json({ success: false, message: 'Employee email already exists' });
-    const employee = await Employee.create(req.body);
+
+    let userId = req.body.userId;
+    if (!userId) {
+      const existingUser = await User.findOne({ email: req.body.email });
+      if (existingUser) {
+        userId = existingUser._id;
+      } else {
+        const user = await User.create({
+          name: req.body.name,
+          email: req.body.email,
+          password: req.body.password || 'Employee@123',
+          role: 'Employee',
+          companyId: req.body.companyId
+        });
+        userId = user._id;
+      }
+    }
+
+    const employee = await Employee.create({ ...req.body, userId });
     res.status(201).json({ success: true, employee });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 };

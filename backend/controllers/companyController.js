@@ -11,7 +11,10 @@ exports.createCompany = async (req, res) => {
 
 exports.getCompanies = async (req, res) => {
   try {
-    const companies = await Company.find().sort({ createdAt: -1 });
+    const filter = {};
+    // If user has a companyId, only show their company
+    if (req.user?.companyId) filter._id = req.user.companyId;
+    const companies = await Company.find(filter).sort({ createdAt: -1 });
     res.json({ success: true, count: companies.length, companies });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 };
