@@ -2,26 +2,72 @@ import { useEffect, useState } from 'react';
 import Navbar from '../components/Navbar';
 import { getCompanies, createCompany, updateCompany, deleteCompany } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import CompanyAdminsModal from '../components/CompanyAdminsModal';
 
-const empty = { name: '', email: '', phone: '', industry: '', address: '', gstNumber: '', panNumber: '' };
+const empty = {
+  name: '',
+  email: '',
+  phone: '',
+  industry: '',
+  address: '',
+  gstNumber: '',
+  panNumber: '',
+  adminName: '',
+  adminEmail: '',
+  adminPassword: '',
+};
+
+const normalizeTaxId = value => String(value || '').trim().toUpperCase().replace(/[\s-]/g, '');
 
 export default function Companies() {
-  const { user } = useAuth();
+  const { isSuperAdmin } = useAuth();
   const [companies, setCompanies] = useState([]);
   const [form, setForm] = useState(empty);
   const [editing, setEditing] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [msg, setMsg] = useState({ text: '', type: 'success' });
   const [loading, setLoading] = useState(false);
+  const [adminsFor, setAdminsFor] = useState(null);
 
   const load = async () => { const r = await getCompanies(); setCompanies(r.data.companies || r.data); };
   useEffect(() => { load(); }, []);
 
   const toast = (text, type = 'success') => { setMsg({ text, type }); setTimeout(() => setMsg({ text: '' }), 3000); };
 
+  const validateForm = () => {
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const panPattern = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
+    const gstPattern = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
+    const panNumber = normalizeTaxId(form.panNumber);
+    const gstNumber = normalizeTaxId(form.gstNumber);
+    if (!form.name.trim()) return 'Company name is required';
+    if (!emailPattern.test(form.email.trim())) return 'Valid company email is required';
+    if (!form.industry) return 'Industry is required';
+    if (panNumber && !panPattern.test(panNumber)) return 'PAN number is invalid';
+    if (gstNumber && !gstPattern.test(gstNumber)) return 'GST number is invalid. Example: 29ABCDE1234F1Z5';
+    if (!editing) {
+      if (!form.adminName.trim()) return 'Admin name is required';
+      if (!emailPattern.test(form.adminEmail.trim())) return 'Valid admin email is required';
+      if (form.adminPassword.length < 6) return 'Admin password must be at least 6 characters';
+    }
+    return null;
+  };
+
   const handleSubmit = async e => {
-    e.preventDefault(); setLoading(true);
+    e.preventDefault();
+    const validationError = validateForm();
+    if (validationError) {
+      toast(validationError, 'error');
+      return;
+    }
+    setLoading(true);
     try {
+      const payload = {
+        ...form,
+        gstNumber: normalizeTaxId(form.gstNumber),
+        panNumber: normalizeTaxId(form.panNumber),
+      };
+      Object.assign(form, payload);
       if (editing) { await updateCompany(editing, form); toast('✅ Company updated'); }
       else { await createCompany(form); toast('✅ Company created'); }
       setForm(empty); setEditing(null); setShowForm(false); load();
@@ -29,11 +75,8 @@ export default function Companies() {
     finally { setLoading(false); }
   };
 
-  const handleEdit = c => { setForm({ name: c.name, email: c.email, phone: c.phone || '', industry: c.industry, address: c.address || '', gstNumber: c.gstNumber || '', panNumber: c.panNumber || '' }); setEditing(c._id); setShowForm(true); };
+  const handleEdit = c => { setForm({ ...empty, name: c.name, email: c.email, phone: c.phone || '', industry: c.industry, address: c.address || '', gstNumber: c.gstNumber || '', panNumber: c.panNumber || '' }); setEditing(c._id); setShowForm(true); };
   const handleDelete = async id => { if (!window.confirm('Delete this company?')) return; await deleteCompany(id); toast('Deleted'); load(); };
-
-  // Only super admin (no companyId) can add companies
-  const isSuperAdmin = !user?.companyId;
 
   const industries = ['IT', 'Manufacturing', 'Healthcare', 'Finance', 'Retail', 'Education', 'Construction', 'Other'];
 
@@ -73,8 +116,25 @@ export default function Companies() {
                   {industries.map(i => <option key={i}>{i}</option>)}
                 </select>
               </div>
+              {!editing && (
+                <>
+                  <div style={{ gridColumn: '1 / -1', marginTop: '0.25rem', fontWeight: '800', color: '#0f172a' }}>Company Admin Login</div>
+                  <div>
+                    <label style={S.label}>Admin Name*</label>
+                    <input style={S.input} type="text" placeholder="Admin Name" value={form.adminName} onChange={e => setForm({ ...form, adminName: e.target.value })} required />
+                  </div>
+                  <div>
+                    <label style={S.label}>Admin Email*</label>
+                    <input style={S.input} type="email" placeholder="name@yourcompany.com" value={form.adminEmail} onChange={e => setForm({ ...form, adminEmail: e.target.value })} required />
+                  </div>
+                  <div>
+                    <label style={S.label}>Admin Password*</label>
+                    <input style={S.input} type="password" placeholder="Minimum 6 characters" value={form.adminPassword} onChange={e => setForm({ ...form, adminPassword: e.target.value })} required minLength={6} />
+                  </div>
+                </>
+              )}
               <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-                <button style={{ ...S.btn, width: '100%' }} type="submit" disabled={loading}>{loading ? 'Saving...' : editing ? 'Update Company' : 'Create Company'}</button>
+                <button style={{ ...S.btn, width: '100%' }} type="submit" disabled={loading}>{loading ? 'Saving...' : editing ? 'Update Company' : 'Create Company and Admin'}</button>
               </div>
             </form>
           </div>
@@ -98,8 +158,9 @@ export default function Companies() {
                   <td style={S.td}>{c.gstNumber || '—'}</td>
                   <td style={S.td}>{c.panNumber || '—'}</td>
                   <td style={S.td}>
-                    <button style={S.editBtn} onClick={() => handleEdit(c)}>✏ Edit</button>
-                    {isSuperAdmin && <button style={S.delBtn} onClick={() => handleDelete(c._id)}>🗑 Del</button>}
+                    {isSuperAdmin && <button style={S.editBtn} onClick={() => handleEdit(c)}>Edit</button>}
+                    {isSuperAdmin && <button style={{ ...S.editBtn, background: '#ede9fe', color: '#5b21b6' }} onClick={() => setAdminsFor(c)}>Admins</button>}
+                    {isSuperAdmin && <button style={S.delBtn} onClick={() => handleDelete(c._id)}>Delete</button>}
                   </td>
                 </tr>
               ))}
@@ -108,25 +169,26 @@ export default function Companies() {
           </table>
         </div>
       </div>
+      {adminsFor && <CompanyAdminsModal company={adminsFor} onClose={() => setAdminsFor(null)} />}
     </div>
   );
 }
 
 const S = {
-  container: { padding: '1.5rem 2rem', maxWidth: '1300px', margin: '0 auto' },
+  container: { padding: '1.75rem 2rem 3rem', maxWidth: '1480px', margin: '0 auto', fontFamily: 'Inter, system-ui, sans-serif' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem' },
-  title: { margin: 0, color: '#1a237e', fontSize: '1.4rem' },
-  sub: { margin: '0.2rem 0 0', color: '#666', fontSize: '0.85rem' },
-  card: { background: '#fff', borderRadius: '12px', padding: '1.5rem', boxShadow: '0 2px 8px rgba(0,0,0,0.07)', marginBottom: '1.25rem' },
-  cardTitle: { margin: '0 0 1.25rem', color: '#1a237e', fontSize: '1.1rem' },
+  title: { margin: 0, color: '#0f172a', fontSize: '1.75rem', letterSpacing: '-0.04em' },
+  sub: { margin: '0.35rem 0 0', color: '#64748b', fontSize: '0.9rem' },
+  card: { background: 'rgba(255,255,255,0.78)', borderRadius: '22px', padding: '1.35rem', boxShadow: '0 18px 50px rgba(15,23,42,0.08)', border: '1px solid rgba(255,255,255,0.72)', backdropFilter: 'blur(18px)', marginBottom: '1.25rem' },
+  cardTitle: { margin: '0 0 1.25rem', color: '#0f172a', fontSize: '1.1rem' },
   grid2: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' },
-  label: { display: 'block', fontSize: '0.78rem', fontWeight: '600', color: '#555', marginBottom: '0.3rem' },
-  input: { width: '100%', padding: '0.6rem 0.75rem', border: '1.5px solid #e0e0e0', borderRadius: '8px', fontSize: '0.9rem', boxSizing: 'border-box' },
-  btn: { padding: '0.6rem 1.25rem', background: '#1a237e', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '0.9rem', fontWeight: '600' },
+  label: { display: 'block', fontSize: '0.78rem', fontWeight: '750', color: '#334155', marginBottom: '0.3rem' },
+  input: { width: '100%', padding: '0.72rem 0.85rem', border: '1.5px solid #dbe3ef', borderRadius: '12px', fontSize: '0.9rem', boxSizing: 'border-box', background: '#fff' },
+  btn: { padding: '0.72rem 1.15rem', background: 'linear-gradient(135deg, #4f46e5, #2563eb)', color: '#fff', border: 'none', borderRadius: '12px', cursor: 'pointer', fontSize: '0.9rem', fontWeight: '750', boxShadow: '0 12px 28px rgba(37,99,235,0.18)' },
   table: { width: '100%', borderCollapse: 'collapse' },
-  th: { padding: '0.65rem 0.75rem', textAlign: 'left', fontSize: '0.78rem', color: '#1a237e', fontWeight: '600' },
-  td: { padding: '0.7rem 0.75rem', fontSize: '0.85rem' },
-  chip: { background: '#e8eaf6', color: '#1a237e', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.75rem' },
+  th: { padding: '0.78rem 0.85rem', textAlign: 'left', fontSize: '0.72rem', color: '#64748b', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.05em', background: '#f8fafc' },
+  td: { padding: '0.78rem 0.85rem', fontSize: '0.85rem', color: '#334155' },
+  chip: { background: '#eef2ff', color: '#3730a3', padding: '0.22rem 0.5rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: '750' },
   editBtn: { padding: '0.3rem 0.6rem', background: '#e8eaf6', color: '#1a237e', border: 'none', borderRadius: '6px', cursor: 'pointer', marginRight: '0.4rem', fontSize: '0.78rem' },
   delBtn: { padding: '0.3rem 0.6rem', background: '#ffebee', color: '#c62828', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.78rem' },
   toast: { padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.88rem', fontWeight: '500' },

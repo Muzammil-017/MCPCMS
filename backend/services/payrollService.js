@@ -49,4 +49,38 @@ const calculatePayroll = (salary, presentDays = 26, workingDays = 26) => {
   };
 };
 
-module.exports = { calculatePayroll };
+/**
+ * Loss of Pay (LOP) days for one employee in one month.
+ * Employees are paid for the full month by default; only recorded absences reduce pay:
+ *   Absent = 1 day, Half-Day = 0.5 day, approved Unpaid leave = 1 day per calendar day in the month.
+ * A day marked Present / WFH / Holiday / Leave is never LOP, even if it falls inside an Unpaid leave;
+ * a Half-Day inside an Unpaid leave stays 0.5. Unmarked days are paid.
+ */
+const ATTENDANCE_LOP = { Absent: 1, 'Half-Day': 0.5 };
+
+const daysOfLeaveInMonth = (leave, month) => {
+  const days = [];
+  const end = new Date(`${leave.toDate}T00:00:00Z`);
+  for (let d = new Date(`${leave.fromDate}T00:00:00Z`); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+    const day = d.toISOString().slice(0, 10);
+    if (day.startsWith(month)) days.push(day);
+  }
+  return days;
+};
+
+const calculateLopDays = (attendanceRecords = [], unpaidLeaves = [], month) => {
+  const lopByDate = {};
+  const markedDates = new Set();
+  attendanceRecords.forEach(record => {
+    markedDates.add(record.date);
+    if (ATTENDANCE_LOP[record.status]) lopByDate[record.date] = ATTENDANCE_LOP[record.status];
+  });
+  unpaidLeaves.forEach(leave => {
+    daysOfLeaveInMonth(leave, month).forEach(day => {
+      if (!markedDates.has(day)) lopByDate[day] = 1;
+    });
+  });
+  return Object.values(lopByDate).reduce((sum, value) => sum + value, 0);
+};
+
+module.exports = { calculatePayroll, calculateLopDays };

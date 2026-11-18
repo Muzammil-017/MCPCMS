@@ -3,16 +3,13 @@ const Employee = require('../models/Employee');
 const Company = require('../models/Company');
 const Compliance = require('../models/Compliance');
 const Attendance = require('../models/Attendance');
+const { sendError } = require('../services/errorService');
 
-// Helper: get companyId filter based on user role
-const getCompanyFilter = (user) => {
-  if (user.role === 'Admin' && !user.companyId) return null; // super admin sees all
-  return user.companyId || null;
-};
+const getCompanyFilter = (req) => req.tenantId || null;
 
 exports.getOverview = async (req, res) => {
   try {
-    const companyId = getCompanyFilter(req.user);
+    const companyId = getCompanyFilter(req);
     const companyFilter = companyId ? { companyId } : {};
     const activeFilter = companyId ? { companyId, isActive: true } : { isActive: true };
 
@@ -31,12 +28,12 @@ exports.getOverview = async (req, res) => {
     const thisMonthPayout = thisMonthPayrolls.reduce((s, p) => s + p.netSalary, 0);
 
     res.json({ success: true, data: { companies, employees, totalPayrollRecords: payrolls.length, totalPayout, avgSalary, compliantCount, thisMonthPayout, thisMonthPayrolls: thisMonthPayrolls.length } });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+  } catch (err) { sendError(res, err); }
 };
 
 exports.getPayrollTrends = async (req, res) => {
   try {
-    const companyId = getCompanyFilter(req.user);
+    const companyId = getCompanyFilter(req);
     const filter = companyId ? { companyId } : {};
     const payrolls = await Payroll.find(filter).sort({ payrollMonth: 1 });
     const map = {};
@@ -50,12 +47,12 @@ exports.getPayrollTrends = async (req, res) => {
       map[p.payrollMonth].count += 1;
     });
     res.json({ success: true, data: Object.values(map) });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+  } catch (err) { sendError(res, err); }
 };
 
 exports.getDepartmentSalary = async (req, res) => {
   try {
-    const companyId = getCompanyFilter(req.user);
+    const companyId = getCompanyFilter(req);
     const filter = companyId ? { companyId, isActive: true } : { isActive: true };
     const employees = await Employee.find(filter).populate('salaryStructureId');
     const map = {};
@@ -70,12 +67,12 @@ exports.getDepartmentSalary = async (req, res) => {
     });
     const result = Object.values(map).map(d => ({ ...d, avgSalary: d.count ? Math.round(d.total / d.count) : 0 }));
     res.json({ success: true, data: result });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+  } catch (err) { sendError(res, err); }
 };
 
 exports.getCompanyComparison = async (req, res) => {
   try {
-    const companyId = getCompanyFilter(req.user);
+    const companyId = getCompanyFilter(req);
     const companies = companyId
       ? await Company.find({ _id: companyId, isActive: true })
       : await Company.find({ isActive: true });
@@ -95,23 +92,23 @@ exports.getCompanyComparison = async (req, res) => {
       };
     }));
     res.json({ success: true, data: result });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+  } catch (err) { sendError(res, err); }
 };
 
 exports.getComplianceStatus = async (req, res) => {
   try {
-    const companyId = getCompanyFilter(req.user);
+    const companyId = getCompanyFilter(req);
     const filter = companyId ? { companyId } : {};
     const records = await Compliance.find(filter).populate('companyId', 'name').sort({ month: -1 });
     const summary = { Compliant: 0, 'Non-Compliant': 0, Partial: 0 };
     records.forEach(r => { if (summary[r.status] !== undefined) summary[r.status]++; });
     res.json({ success: true, data: { records, summary } });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+  } catch (err) { sendError(res, err); }
 };
 
 exports.getAttendanceSummary = async (req, res) => {
   try {
-    const companyId = getCompanyFilter(req.user);
+    const companyId = getCompanyFilter(req);
     const { month = new Date().toISOString().substring(0, 7) } = req.query;
     let filter = { month };
     if (companyId) {
@@ -127,5 +124,5 @@ exports.getAttendanceSummary = async (req, res) => {
       WFH: records.filter(r => r.status === 'WFH').length,
     };
     res.json({ success: true, data: summary });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+  } catch (err) { sendError(res, err); }
 };

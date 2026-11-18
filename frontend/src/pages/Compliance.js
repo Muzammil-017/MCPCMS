@@ -44,8 +44,11 @@ export default function Compliance() {
       getCompanies(),
       getCompliance(filterStatus ? { status: filterStatus } : {})
     ]);
-    setCompanies(c.data.companies || c.data);
+    const list = c.data.companies || c.data;
+    setCompanies(list);
     setRecords(r.data.records || r.data);
+    // A company admin/HR has exactly one company: select it so the checklist is ready to use
+    if (list.length === 1) setCompanyId(prev => prev || list[0]._id);
   };
 
   useEffect(() => { load(); }, [filterStatus]);
@@ -106,7 +109,7 @@ export default function Compliance() {
         <div style={S.header}>
           <div>
             <h2 style={S.title}>✅ Compliance Management</h2>
-            <p style={S.sub}>Track statutory compliance across all companies</p>
+            <p style={S.sub}>{companies.length === 1 ? `Track statutory compliance for ${companies[0].name}` : 'Track statutory compliance across all companies'}</p>
           </div>
         </div>
 
@@ -230,7 +233,7 @@ export default function Compliance() {
               <h3 style={S.cardTitle}>
                 📊 Compliance Summary
                 <span style={{ fontSize: '0.72rem', fontWeight: '400', color: '#888', marginLeft: '0.5rem' }}>
-                  {companyId ? '(this company, all months)' : '(all companies)'}
+                  {companyId || companies.length === 1 ? '(this company, all months)' : '(all companies)'}
                 </span>
               </h3>
               {['Compliant', 'Partial', 'Non-Compliant'].map(status => {
@@ -304,17 +307,17 @@ export default function Compliance() {
 }
 
 const S = {
-  container: { padding: '1.5rem 2rem', maxWidth: '1300px', margin: '0 auto' },
+  container: { padding: '1.75rem 2rem 3rem', maxWidth: '1480px', margin: '0 auto', fontFamily: 'Inter, system-ui, sans-serif' },
   header:    { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem' },
-  title:     { margin: 0, color: '#1a237e', fontSize: '1.4rem' },
-  sub:       { margin: '0.2rem 0 0', color: '#666', fontSize: '0.85rem' },
-  card:      { background: '#fff', borderRadius: '12px', padding: '1.5rem', boxShadow: '0 2px 8px rgba(0,0,0,0.07)', marginBottom: '1.25rem' },
-  cardTitle: { margin: '0 0 1.1rem', color: '#1a237e', fontSize: '1.05rem' },
-  label:     { display: 'block', fontSize: '0.72rem', fontWeight: '600', color: '#555', marginBottom: '0.25rem' },
-  input:     { padding: '0.55rem 0.75rem', border: '1.5px solid #e0e0e0', borderRadius: '7px', fontSize: '0.85rem', width: '100%' },
-  btn:       { padding: '0.6rem 1.25rem', background: '#1a237e', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '0.88rem', fontWeight: '600' },
+  title:     { margin: 0, color: '#0f172a', fontSize: '1.75rem', letterSpacing: '-0.04em' },
+  sub:       { margin: '0.35rem 0 0', color: '#64748b', fontSize: '0.9rem' },
+  card:      { background: 'rgba(255,255,255,0.78)', borderRadius: '22px', padding: '1.35rem', boxShadow: '0 18px 50px rgba(15,23,42,0.08)', border: '1px solid rgba(255,255,255,0.72)', backdropFilter: 'blur(18px)', marginBottom: '1.25rem' },
+  cardTitle: { margin: '0 0 1.1rem', color: '#0f172a', fontSize: '1.05rem', letterSpacing: '-0.02em' },
+  label:     { display: 'block', fontSize: '0.74rem', fontWeight: '750', color: '#334155', marginBottom: '0.3rem' },
+  input:     { padding: '0.72rem 0.85rem', border: '1.5px solid #dbe3ef', borderRadius: '12px', fontSize: '0.86rem', width: '100%', background: '#fff' },
+  btn:       { padding: '0.72rem 1.15rem', background: 'linear-gradient(135deg, #4f46e5, #2563eb)', color: '#fff', border: 'none', borderRadius: '12px', cursor: 'pointer', fontSize: '0.88rem', fontWeight: '750', boxShadow: '0 12px 28px rgba(37,99,235,0.18)' },
   table:     { width: '100%', borderCollapse: 'collapse', fontSize: '0.83rem' },
-  th:        { padding: '0.6rem 0.75rem', textAlign: 'left', fontSize: '0.73rem', color: '#1a237e', fontWeight: '600' },
-  td:        { padding: '0.55rem 0.75rem' },
+  th:        { padding: '0.78rem 0.85rem', textAlign: 'left', fontSize: '0.72rem', color: '#64748b', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.05em', background: '#f8fafc' },
+  td:        { padding: '0.78rem 0.85rem', color: '#334155' },
   toast:     { padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.88rem', fontWeight: '500' },
 };

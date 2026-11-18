@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import Navbar from '../components/Navbar';
 import { exportAttendanceExcel, exportPayrollExcel, getCompanies, getPayroll, getAttendanceSummary, triggerDownload } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 const currentMonth = new Date().toISOString().slice(0, 7);
 
 export default function Reports() {
+  const { isSuperAdmin, companyId } = useAuth();
   const [companies, setCompanies] = useState([]);
   const [filters, setFilters] = useState({ month: currentMonth, companyId: '' });
   const [payrolls, setPayrolls] = useState([]);
@@ -24,9 +26,10 @@ export default function Reports() {
   }, []);
 
   useEffect(() => {
+    const scopedCompanyId = isSuperAdmin ? filters.companyId : companyId;
     Promise.all([
-      getPayroll({ month: filters.month, companyId: filters.companyId }),
-      getAttendanceSummary({ month: filters.month, companyId: filters.companyId }),
+      getPayroll({ month: filters.month, companyId: scopedCompanyId }),
+      getAttendanceSummary({ month: filters.month, companyId: scopedCompanyId }),
     ])
       .then(([payrollRes, attendanceRes]) => {
         setPayrolls(payrollRes.data.payrolls || payrollRes.data || []);
@@ -36,9 +39,10 @@ export default function Reports() {
         setPayrolls([]);
         setAttendance({});
       });
-  }, [filters]);
+  }, [filters, companyId, isSuperAdmin]);
 
-  const selectedCompany = companies.find(company => company._id === filters.companyId);
+  const scopedCompanyId = isSuperAdmin ? filters.companyId : companyId;
+  const selectedCompany = companies.find(company => company._id === scopedCompanyId);
   const summary = useMemo(() => ({
     totalRecords: payrolls.length,
     totalNet: payrolls.reduce((sum, item) => sum + (item.netSalary || 0), 0),
@@ -54,10 +58,10 @@ export default function Reports() {
     setBusy(type);
     try {
       if (type === 'payroll') {
-        const response = await exportPayrollExcel({ month: filters.month, companyId: filters.companyId });
+        const response = await exportPayrollExcel({ month: filters.month, companyId: scopedCompanyId });
         triggerDownload(response.data, `Payroll_Report_${filters.month}.xlsx`);
       } else {
-        const response = await exportAttendanceExcel({ month: filters.month, companyId: filters.companyId });
+        const response = await exportAttendanceExcel({ month: filters.month, companyId: scopedCompanyId });
         triggerDownload(response.data, `Attendance_Report_${filters.month}.xlsx`);
       }
       toast(`${type === 'payroll' ? 'Payroll' : 'Attendance'} report downloaded`);
@@ -94,13 +98,15 @@ export default function Reports() {
               <label style={S.label}>Report Month</label>
               <input style={S.input} type="month" value={filters.month} onChange={event => setFilters({ ...filters, month: event.target.value })} />
             </div>
-            <div>
-              <label style={S.label}>Company</label>
-              <select style={S.input} value={filters.companyId} onChange={event => setFilters({ ...filters, companyId: event.target.value })}>
-                <option value="">All Companies</option>
-                {companies.map(company => <option key={company._id} value={company._id}>{company.name}</option>)}
-              </select>
-            </div>
+            {isSuperAdmin && (
+              <div>
+                <label style={S.label}>Company</label>
+                <select style={S.input} value={filters.companyId} onChange={event => setFilters({ ...filters, companyId: event.target.value })}>
+                  <option value="">All Companies</option>
+                  {companies.map(company => <option key={company._id} value={company._id}>{company.name}</option>)}
+                </select>
+              </div>
+            )}
             <button style={{ ...S.btn, background: '#1a237e' }} onClick={() => handleExport('payroll')} disabled={busy === 'payroll'}>
               {busy === 'payroll' ? 'Exporting...' : 'Export Payroll Excel'}
             </button>
@@ -163,14 +169,14 @@ export default function Reports() {
 }
 
 const S = {
-  container: { padding: '1.5rem 2rem', maxWidth: '1300px', margin: '0 auto' },
+  container: { padding: '1.75rem 2rem 3rem', maxWidth: '1480px', margin: '0 auto', fontFamily: 'Inter, system-ui, sans-serif' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem' },
-  title: { margin: 0, color: '#1a237e', fontSize: '1.4rem' },
-  sub: { margin: '0.25rem 0 0', color: '#667085', fontSize: '0.88rem' },
-  card: { background: '#fff', borderRadius: '12px', padding: '1.5rem', boxShadow: '0 2px 8px rgba(0,0,0,0.07)' },
-  cardTitle: { margin: '0 0 1rem', color: '#1a237e', fontSize: '1rem' },
-  label: { display: 'block', fontSize: '0.74rem', fontWeight: '600', color: '#475467', marginBottom: '0.3rem' },
-  input: { width: '100%', padding: '0.6rem 0.75rem', border: '1.5px solid #e2e8f0', borderRadius: '8px', fontSize: '0.88rem', boxSizing: 'border-box' },
-  btn: { padding: '0.7rem 1.1rem', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '0.85rem', fontWeight: '600', cursor: 'pointer' },
+  title: { margin: 0, color: '#0f172a', fontSize: '1.75rem', letterSpacing: '-0.04em' },
+  sub: { margin: '0.35rem 0 0', color: '#64748b', fontSize: '0.9rem' },
+  card: { background: 'rgba(255,255,255,0.78)', borderRadius: '22px', padding: '1.35rem', boxShadow: '0 18px 50px rgba(15,23,42,0.08)', border: '1px solid rgba(255,255,255,0.72)', backdropFilter: 'blur(18px)' },
+  cardTitle: { margin: '0 0 1rem', color: '#0f172a', fontSize: '1rem', letterSpacing: '-0.02em' },
+  label: { display: 'block', fontSize: '0.74rem', fontWeight: '750', color: '#334155', marginBottom: '0.3rem' },
+  input: { width: '100%', padding: '0.72rem 0.85rem', border: '1.5px solid #dbe3ef', borderRadius: '12px', fontSize: '0.88rem', boxSizing: 'border-box', background: '#fff' },
+  btn: { padding: '0.72rem 1.1rem', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '0.85rem', fontWeight: '750', cursor: 'pointer', boxShadow: '0 12px 28px rgba(37,99,235,0.18)' },
   toast: { padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.88rem', fontWeight: '500' },
 };

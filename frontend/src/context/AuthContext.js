@@ -17,7 +17,10 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   }, []);
 
-  return <AuthContext.Provider value={{ user, login, logout }}>{children}</AuthContext.Provider>;
+  const isSuperAdmin = Boolean(user?.isSuperAdmin || user?.role === 'SuperAdmin' || (user?.role === 'Admin' && !user?.companyId));
+  const companyId = typeof user?.companyId === 'object' ? user.companyId?._id : user?.companyId;
+
+  return <AuthContext.Provider value={{ user, login, logout, isSuperAdmin, companyId }}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = () => useContext(AuthContext);

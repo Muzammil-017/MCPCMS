@@ -1,6 +1,8 @@
 const Compliance = require('../models/Compliance');
 const Payroll = require('../models/Payroll');
 const Employee = require('../models/Employee');
+const { resolveCompanyId, tenantFilter, assertCompanyAccess } = require('../middleware/authMiddleware');
+const { sendError } = require('../services/errorService');
 
 const getStatus = (data) => {
   const fields = ['pfFiled', 'esiFiled', 'tdsDeducted', 'professionalTaxFiled', 'minimumWageCompliance', 'labourWelfareFund'];
@@ -12,7 +14,12 @@ const getStatus = (data) => {
 
 exports.saveCompliance = async (req, res) => {
   try {
-    const { companyId, month, ...rest } = req.body;
+    const { companyId: _ignoredCompanyId, month, ...rest } = req.body;
+    const companyId = resolveCompanyId(req);
+    if (!companyId) return res.status(400).json({ success: false, message: 'companyId is required' });
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month || ''))
+      return res.status(400).json({ success: false, message: 'month is required in YYYY-MM format' });
+    if (!assertCompanyAccess(req, companyId)) return res.status(403).json({ success: false, message: 'Access denied for this company' });
     const status = getStatus(rest);
 
     const record = await Compliance.findOneAndUpdate(
@@ -31,15 +38,15 @@ exports.saveCompliance = async (req, res) => {
 
     res.status(201).json({ success: true, record });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    sendError(res, err);
   }
 };
 
 exports.getCompliance = async (req, res) => {
   try {
-    const filter = {};
+    const filter = tenantFilter(req);
 
-    if (req.query.companyId) filter.companyId = req.query.companyId;
+    if (req.isSuperAdmin && req.query.companyId) filter.companyId = req.query.companyId;
     if (req.query.month) filter.month = req.query.month;
     if (req.query.status) filter.status = req.query.status;
 
@@ -50,13 +57,15 @@ exports.getCompliance = async (req, res) => {
 
     res.json({ success: true, count: records.length, records });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    sendError(res, err);
   }
 };
 
 exports.autoValidate = async (req, res) => {
   try {
-    const { companyId, month } = req.params;
+    const { month } = req.params;
+    const companyId = req.isSuperAdmin ? req.params.companyId : req.tenantId;
+    if (!assertCompanyAccess(req, companyId)) return res.status(403).json({ success: false, message: 'Access denied for this company' });
 
     // ✅ Get active employees of selected company ONLY
     const employees = await Employee.find({ companyId, isActive: true });
@@ -141,6 +150,6 @@ exports.autoValidate = async (req, res) => {
           : `⚠️ ${issues.length} issue(s) found`,
     });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    sendError(res, err);
   }
 };

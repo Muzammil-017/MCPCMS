@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import Navbar from '../components/Navbar';
 import { runPayroll, getPayroll, getCompanies, updatePayrollStatus, downloadPayslip, exportPayrollExcel, triggerDownload } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 const STATUS_C = { Processed: '#e65100', Paid: '#2e7d32', Hold: '#c62828' };
 
 export default function Payroll() {
+  const { isSuperAdmin, companyId } = useAuth();
   const [payrolls, setPayrolls] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [runForm, setRunForm] = useState({ companyId: '', payrollMonth: new Date().toISOString().substring(0, 7) });
@@ -18,19 +20,21 @@ export default function Payroll() {
   const toast = (text, type = 'success') => { setMsg({ text, type }); setTimeout(() => setMsg({ text: '' }), 4000); };
 
   const load = async () => {
-    const [companyRes, payrollRes] = await Promise.all([getCompanies(), getPayroll({ month: filterMonth, companyId: filterCompany, status: filterStatus })]);
+    const scopedCompanyId = isSuperAdmin ? filterCompany : companyId;
+    const [companyRes, payrollRes] = await Promise.all([getCompanies(), getPayroll({ month: filterMonth, companyId: scopedCompanyId, status: filterStatus })]);
     setCompanies(companyRes.data.companies || companyRes.data);
     setPayrolls(payrollRes.data.payrolls || payrollRes.data);
   };
 
-  useEffect(() => { load(); }, [filterMonth, filterCompany, filterStatus]);
+  useEffect(() => { load(); }, [filterMonth, filterCompany, filterStatus, companyId, isSuperAdmin]);
 
   const handleRun = async event => {
     event.preventDefault();
-    if (!runForm.companyId) return toast('Select a company', 'error');
+    const payload = isSuperAdmin ? runForm : { ...runForm, companyId };
+    if (!payload.companyId) return toast('Select a company', 'error');
     setRunning(true);
     try {
-      const response = await runPayroll(runForm);
+      const response = await runPayroll(payload);
       toast(response.data.message);
       load();
     } catch (err) {
@@ -61,7 +65,7 @@ export default function Payroll() {
 
   const handleExcel = async () => {
     try {
-      const response = await exportPayrollExcel({ month: filterMonth, companyId: filterCompany });
+      const response = await exportPayrollExcel({ month: filterMonth, companyId: isSuperAdmin ? filterCompany : companyId });
       triggerDownload(response.data, `Payroll_${filterMonth || 'All'}.xlsx`);
     } catch {
       toast('Export failed', 'error');
@@ -97,13 +101,15 @@ export default function Payroll() {
         <div style={S.card}>
           <h3 style={S.cardTitle}>Run Payroll</h3>
           <form onSubmit={handleRun} style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-            <div style={{ flex: 1, minWidth: '200px' }}>
-              <label style={S.label}>Company *</label>
-              <select style={S.input} value={runForm.companyId} onChange={event => setRunForm({ ...runForm, companyId: event.target.value })} required>
-                <option value="">Select Company</option>
-                {companies.map(company => <option key={company._id} value={company._id}>{company.name}</option>)}
-              </select>
-            </div>
+            {isSuperAdmin && (
+              <div style={{ flex: 1, minWidth: '200px' }}>
+                <label style={S.label}>Company *</label>
+                <select style={S.input} value={runForm.companyId} onChange={event => setRunForm({ ...runForm, companyId: event.target.value })} required>
+                  <option value="">Select Company</option>
+                  {companies.map(company => <option key={company._id} value={company._id}>{company.name}</option>)}
+                </select>
+              </div>
+            )}
             <div>
               <label style={S.label}>Payroll Month *</label>
               <input style={S.input} type="month" value={runForm.payrollMonth} onChange={event => setRunForm({ ...runForm, payrollMonth: event.target.value })} required />
@@ -113,7 +119,7 @@ export default function Payroll() {
             </button>
           </form>
           <p style={{ margin: '0.75rem 0 0', color: '#888', fontSize: '0.78rem' }}>
-            Payroll uses attendance data for pro-rata calculation. PF is capped at INR 1,800 and ESI applies when gross salary is at or below INR 21,000.
+            Salary is paid for the full month (26 days) minus loss-of-pay days: each Absent day, half of each Half-Day, and each day of approved Unpaid leave. Unmarked days are paid. PF is capped at INR 1,800 and ESI applies when gross salary is at or below INR 21,000.
           </p>
         </div>
 
@@ -149,13 +155,15 @@ export default function Payroll() {
             <label style={S.label}>Filter Month</label>
             <input style={S.input} type="month" value={filterMonth} onChange={event => setFilterMonth(event.target.value)} />
           </div>
-          <div>
-            <label style={S.label}>Company</label>
-            <select style={S.input} value={filterCompany} onChange={event => setFilterCompany(event.target.value)}>
-              <option value="">All Companies</option>
-              {companies.map(company => <option key={company._id} value={company._id}>{company.name}</option>)}
-            </select>
-          </div>
+          {isSuperAdmin && (
+            <div>
+              <label style={S.label}>Company</label>
+              <select style={S.input} value={filterCompany} onChange={event => setFilterCompany(event.target.value)}>
+                <option value="">All Companies</option>
+                {companies.map(company => <option key={company._id} value={company._id}>{company.name}</option>)}
+              </select>
+            </div>
+          )}
           <div>
             <label style={S.label}>Status</label>
             <select style={S.input} value={filterStatus} onChange={event => setFilterStatus(event.target.value)}>
@@ -186,7 +194,7 @@ export default function Payroll() {
                     <td style={S.td}>{fmt(item.esiDeduction)}</td>
                     <td style={S.td}>{fmt(item.tdsDeduction)}</td>
                     <td style={{ ...S.td, fontWeight: '700', color: '#2e7d32' }}>{fmt(item.netSalary)}</td>
-                    <td style={S.td}>{item.presentDays}/{item.workingDays}</td>
+                    <td style={S.td} title={item.lopDays ? `${item.lopDays} loss-of-pay day(s)` : 'No loss of pay'}>{item.presentDays}/{item.workingDays}{item.lopDays ? <div style={{ fontSize: '0.72rem', color: '#c62828' }}>LOP {item.lopDays}</div> : null}</td>
                     <td style={S.td}>
                       <select value={item.status} onChange={event => handleStatus(item._id, event.target.value)} style={{ padding: '0.2rem 0.4rem', border: `1.5px solid ${STATUS_C[item.status]}`, borderRadius: '5px', color: STATUS_C[item.status], fontSize: '0.75rem', fontWeight: '600', background: `${STATUS_C[item.status]}15`, cursor: 'pointer' }}>
                         {['Processed', 'Paid', 'Hold'].map(status => <option key={status}>{status}</option>)}
@@ -208,19 +216,19 @@ export default function Payroll() {
 }
 
 const S = {
-  container: { padding: '1.5rem 2rem', maxWidth: '1400px', margin: '0 auto' },
+  container: { padding: '1.75rem 2rem 3rem', maxWidth: '1480px', margin: '0 auto', fontFamily: 'Inter, system-ui, sans-serif' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem' },
-  title: { margin: 0, color: '#1a237e', fontSize: '1.4rem' },
-  sub: { margin: '0.2rem 0 0', color: '#666', fontSize: '0.85rem' },
-  card: { background: '#fff', borderRadius: '12px', padding: '1.5rem', boxShadow: '0 2px 8px rgba(0,0,0,0.07)', marginBottom: '1.25rem' },
-  cardTitle: { margin: '0 0 1rem', color: '#1a237e', fontSize: '1.05rem' },
-  label: { display: 'block', fontSize: '0.72rem', fontWeight: '600', color: '#555', marginBottom: '0.25rem' },
-  input: { padding: '0.55rem 0.75rem', border: '1.5px solid #e0e0e0', borderRadius: '7px', fontSize: '0.85rem', minWidth: '160px' },
-  btn: { padding: '0.6rem 1.25rem', background: '#1a237e', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '0.88rem', fontWeight: '600' },
-  pdfBtn: { padding: '0.25rem 0.6rem', background: '#e8eaf6', color: '#1a237e', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '600' },
+  title: { margin: 0, color: '#0f172a', fontSize: '1.75rem', letterSpacing: '-0.04em' },
+  sub: { margin: '0.35rem 0 0', color: '#64748b', fontSize: '0.9rem' },
+  card: { background: 'rgba(255,255,255,0.78)', borderRadius: '22px', padding: '1.35rem', boxShadow: '0 18px 50px rgba(15,23,42,0.08)', border: '1px solid rgba(255,255,255,0.72)', backdropFilter: 'blur(18px)', marginBottom: '1.25rem' },
+  cardTitle: { margin: '0 0 1rem', color: '#0f172a', fontSize: '1.05rem', letterSpacing: '-0.02em' },
+  label: { display: 'block', fontSize: '0.74rem', fontWeight: '750', color: '#334155', marginBottom: '0.3rem' },
+  input: { padding: '0.72rem 0.85rem', border: '1.5px solid #dbe3ef', borderRadius: '12px', fontSize: '0.86rem', minWidth: '160px', background: '#fff' },
+  btn: { padding: '0.72rem 1.15rem', background: 'linear-gradient(135deg, #4f46e5, #2563eb)', color: '#fff', border: 'none', borderRadius: '12px', cursor: 'pointer', fontSize: '0.88rem', fontWeight: '750', boxShadow: '0 12px 28px rgba(37,99,235,0.18)' },
+  pdfBtn: { padding: '0.38rem 0.7rem', background: '#eef2ff', color: '#3730a3', border: '1px solid #c7d2fe', borderRadius: '9px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '750' },
   table: { width: '100%', borderCollapse: 'collapse', fontSize: '0.83rem' },
-  th: { padding: '0.6rem 0.75rem', textAlign: 'left', fontSize: '0.73rem', color: '#1a237e', fontWeight: '600', whiteSpace: 'nowrap' },
-  td: { padding: '0.55rem 0.75rem', whiteSpace: 'nowrap' },
-  chip: { background: '#e8eaf6', color: '#1a237e', padding: '0.15rem 0.4rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: '600' },
+  th: { padding: '0.78rem 0.85rem', textAlign: 'left', fontSize: '0.72rem', color: '#64748b', fontWeight: '800', whiteSpace: 'nowrap', textTransform: 'uppercase', letterSpacing: '0.05em', background: '#f8fafc' },
+  td: { padding: '0.78rem 0.85rem', whiteSpace: 'nowrap', color: '#334155' },
+  chip: { background: '#eef2ff', color: '#3730a3', padding: '0.2rem 0.48rem', borderRadius: '999px', fontSize: '0.7rem', fontWeight: '750' },
   toast: { padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.88rem', fontWeight: '500' },
 };

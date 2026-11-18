@@ -2,13 +2,15 @@ const ExcelJS = require('exceljs');
 const Payroll = require('../models/Payroll');
 const Employee = require('../models/Employee');
 const Attendance = require('../models/Attendance');
+const { tenantFilter } = require('../middleware/authMiddleware');
+const { sendError } = require('../services/errorService');
 
 exports.exportPayrollExcel = async (req, res) => {
   try {
     const { month, companyId } = req.query;
-    const filter = {};
+    const filter = tenantFilter(req);
     if (month) filter.payrollMonth = month;
-    if (companyId) filter.companyId = companyId;
+    if (req.isSuperAdmin && companyId) filter.companyId = companyId;
 
     const payrolls = await Payroll.find(filter)
       .populate('employeeId', 'name email department position employeeCode')
@@ -75,7 +77,7 @@ exports.exportPayrollExcel = async (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename=Payroll_${month || 'All'}.xlsx`);
     await workbook.xlsx.write(res);
     res.end();
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+  } catch (err) { sendError(res, err); }
 };
 
 exports.exportAttendanceExcel = async (req, res) => {
@@ -83,8 +85,9 @@ exports.exportAttendanceExcel = async (req, res) => {
     const { month, companyId } = req.query;
     const filter = {};
     if (month) filter.month = month;
-    if (companyId) {
-      const emps = await Employee.find({ companyId }).select('_id');
+    const scopedCompanyId = req.isSuperAdmin ? companyId : req.tenantId;
+    if (scopedCompanyId) {
+      const emps = await Employee.find({ companyId: scopedCompanyId }).select('_id');
       filter.employeeId = { $in: emps.map(e => e._id) };
     }
     const records = await Attendance.find(filter).populate('employeeId', 'name department employeeCode');
@@ -117,5 +120,5 @@ exports.exportAttendanceExcel = async (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename=Attendance_${month || 'All'}.xlsx`);
     await workbook.xlsx.write(res);
     res.end();
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+  } catch (err) { sendError(res, err); }
 };

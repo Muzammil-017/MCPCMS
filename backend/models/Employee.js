@@ -19,14 +19,25 @@ const employeeSchema = new mongoose.Schema({
   companyId:         { type: mongoose.Schema.Types.ObjectId, ref: 'Company', required: true },
   salaryStructureId: { type: mongoose.Schema.Types.ObjectId, ref: 'SalaryStructure' },
   isActive:          { type: Boolean, default: true },
+  isDemo:            { type: Boolean, default: false },   // part of the shared demo company login
 }, { timestamps: true });
 
 employeeSchema.pre('save', async function(next) {
   if (!this.employeeCode) {
-    const count = await mongoose.model('Employee').countDocuments();
-    this.employeeCode = `EMP${String(count + 1).padStart(4, '0')}`;
+    const Counter = require('./Counter');
+    // First use: start after the highest existing code so codes created before the counter are never repeated
+    if (!(await Counter.exists({ _id: 'employeeCode' }))) {
+      const codes = await mongoose.model('Employee').find({ employeeCode: /^EMP\d+$/ }).select('employeeCode').lean();
+      const highest = codes.reduce((max, e) => Math.max(max, parseInt(e.employeeCode.slice(3), 10)), 0);
+      await Counter.updateOne({ _id: 'employeeCode' }, { $max: { seq: highest } }, { upsert: true });
+    }
+    const counter = await Counter.findOneAndUpdate({ _id: 'employeeCode' }, { $inc: { seq: 1 } }, { new: true });
+    this.employeeCode = `EMP${String(counter.seq).padStart(4, '0')}`;
   }
   next();
 });
+
+employeeSchema.index({ companyId: 1, email: 1 });
+employeeSchema.index({ companyId: 1, department: 1 });
 
 module.exports = mongoose.model('Employee', employeeSchema);

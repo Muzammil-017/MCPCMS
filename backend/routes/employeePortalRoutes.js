@@ -1,38 +1,39 @@
 const express = require('express');
 const router = express.Router();
-const { protect } = require('../middleware/authMiddleware');
-const Employee = require('../models/Employee');
-const Attendance = require('../models/Attendance');
-const Payroll = require('../models/Payroll');
+const { protect, employeeOnly } = require('../middleware/authMiddleware');
+const { uploadReimbursementBill } = require('../middleware/uploadMiddleware');
+const {
+  getProfile,
+  updateProfile,
+  getAttendance,
+  getPayslips,
+  downloadPayslip,
+  applyLeave,
+  getLeaves,
+  getNotifications,
+} = require('../controllers/employeePortalController');
+const {
+  createEmployeeRequest,
+  getMyRequests,
+} = require('../controllers/requestController');
+const {
+  createReimbursement,
+  getMyReimbursements,
+} = require('../controllers/reimbursementController');
 
-// GET /api/employee-portal/profile
-router.get('/profile', protect, async (req, res) => {
-  try {
-    const employee = await Employee.findOne({ userId: req.user._id })
-      .populate('companyId', 'name');
-    if (!employee) return res.status(404).json({ success: false, message: 'Employee profile not found' });
-    res.json({ success: true, employee });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
-});
+router.use(protect, employeeOnly);
 
-// GET /api/employee-portal/attendance
-router.get('/attendance', protect, async (req, res) => {
-  try {
-    const employee = await Employee.findOne({ userId: req.user._id });
-    if (!employee) return res.status(404).json({ success: false, message: 'Employee not found' });
-    const attendance = await Attendance.find({ employeeId: employee._id }).sort({ date: -1 }).limit(30);
-    res.json({ success: true, attendance });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
-});
-
-// GET /api/employee-portal/payslips
-router.get('/payslips', protect, async (req, res) => {
-  try {
-    const employee = await Employee.findOne({ userId: req.user._id });
-    if (!employee) return res.status(404).json({ success: false, message: 'Employee not found' });
-    const payslips = await Payroll.find({ employeeId: employee._id }).sort({ createdAt: -1 });
-    res.json({ success: true, payslips });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
-});
+router.get('/profile', getProfile);
+router.put('/profile', updateProfile);
+router.get('/attendance', getAttendance);
+router.get('/payslips', getPayslips);
+router.get('/payslips/:month/download', downloadPayslip);
+router.post('/leave', applyLeave);
+router.get('/leave', getLeaves);
+router.get('/notifications', getNotifications);
+router.post('/requests', createEmployeeRequest);
+router.get('/requests', getMyRequests);
+router.post('/reimbursements', uploadReimbursementBill.single('bill'), createReimbursement);
+router.get('/reimbursements', getMyReimbursements);
 
 module.exports = router;

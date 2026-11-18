@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import Navbar from '../components/Navbar';
+import { monthLabel, compactAmount } from '../utils/chartFormat';
 import { getAnalyticsOverview, getPayrollTrends, getDepartmentSalary, getCompanyComparison, getComplianceStatus, getAttendanceAnalytics } from '../services/api';
 
 const fmt = n => `₹${Number(n || 0).toLocaleString('en-IN')}`;
@@ -13,10 +14,10 @@ const BarChart = ({ data, xKey, yKey, color = '#1a237e', height = 140 }) => {
     <div style={{ display: 'flex', alignItems: 'flex-end', gap: '5px', height: `${height}px`, padding: '0 2px' }}>
       {data.slice(-10).map((d, i) => (
         <div key={i} title={`${d[xKey]}: ${fmt(d[yKey])}`}
-          style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end' }}>
-          <div style={{ fontSize: '0.55rem', color: '#888', marginBottom: '2px' }}>{((d[yKey] || 0) / 1000).toFixed(0)}k</div>
+          style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end' }}>
+          <div style={{ fontSize: '0.55rem', color: '#888', marginBottom: '2px' }}>{compactAmount(d[yKey])}</div>
           <div style={{ width: '100%', background: color, borderRadius: '3px 3px 0 0', height: `${((d[yKey] || 0) / max) * (height - 30)}px`, minHeight: '3px', transition: 'height 0.4s ease' }} />
-          <div style={{ fontSize: '0.55rem', color: '#666', marginTop: '3px', textAlign: 'center', lineHeight: 1.2 }}>{String(d[xKey]).substring(5) || d[xKey]}</div>
+          <div style={{ fontSize: '0.55rem', color: '#666', marginTop: '3px', textAlign: 'center', lineHeight: 1.2, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{monthLabel(d[xKey])}</div>
         </div>
       ))}
     </div>
@@ -42,7 +43,7 @@ const MultiBar = ({ data, height = 140 }) => {
               <div style={{ flex: 1, background: '#e65100', borderRadius: '2px 2px 0 0', height: `${((d.gross || 0) / max) * (height - 25)}px`, minHeight: '2px' }} />
               <div style={{ flex: 1, background: '#2e7d32', borderRadius: '2px 2px 0 0', height: `${((d.net || 0) / max) * (height - 25)}px`, minHeight: '2px' }} />
             </div>
-            <div style={{ fontSize: '0.5rem', color: '#666', marginTop: '3px' }}>{String(d.month || '').substring(5)}</div>
+            <div style={{ fontSize: '0.5rem', color: '#666', marginTop: '3px' }}>{monthLabel(d.month)}</div>
           </div>
         ))}
       </div>
@@ -128,7 +129,7 @@ export default function Analytics() {
       <Navbar />
       <div style={S.container}>
         <div style={S.header}>
-          <div><h2 style={S.title}>📊 Analytics Dashboard</h2><p style={S.sub}>Real-time insights across all companies</p></div>
+          <div><h2 style={S.title}>📊 Analytics Dashboard</h2><p style={S.sub}>{companies.length === 1 ? `Real-time insights for ${companies[0].company}` : 'Real-time insights across all companies'}</p></div>
         </div>
 
         {/* KPIs */}
@@ -259,13 +260,13 @@ export default function Analytics() {
 }
 
 const S = {
-  container: { padding: '1.5rem 2rem', maxWidth: '1400px', margin: '0 auto' },
+  container: { padding: '1.75rem 2rem 3rem', maxWidth: '1480px', margin: '0 auto', fontFamily: 'Inter, system-ui, sans-serif' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem' },
-  title: { margin: 0, color: '#1a237e', fontSize: '1.4rem' },
-  sub: { margin: '0.2rem 0 0', color: '#666', fontSize: '0.85rem' },
-  card: { background: '#fff', borderRadius: '12px', padding: '1.5rem', boxShadow: '0 2px 8px rgba(0,0,0,0.07)', marginBottom: '1.25rem' },
-  cardTitle: { margin: '0 0 1rem', color: '#1a237e', fontSize: '1rem', fontWeight: '700' },
+  title: { margin: 0, color: '#0f172a', fontSize: '1.75rem', letterSpacing: '-0.04em' },
+  sub: { margin: '0.35rem 0 0', color: '#64748b', fontSize: '0.9rem' },
+  card: { background: 'rgba(255,255,255,0.78)', borderRadius: '22px', padding: '1.35rem', boxShadow: '0 18px 50px rgba(15,23,42,0.08)', border: '1px solid rgba(255,255,255,0.72)', backdropFilter: 'blur(18px)', marginBottom: '1.25rem' },
+  cardTitle: { margin: '0 0 1rem', color: '#0f172a', fontSize: '1rem', fontWeight: '800', letterSpacing: '-0.02em' },
   table: { width: '100%', borderCollapse: 'collapse', fontSize: '0.83rem' },
-  th: { padding: '0.6rem 0.75rem', textAlign: 'left', fontSize: '0.73rem', color: '#1a237e', fontWeight: '600' },
-  td: { padding: '0.55rem 0.75rem' },
+  th: { padding: '0.78rem 0.85rem', textAlign: 'left', fontSize: '0.72rem', color: '#64748b', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.05em', background: '#f8fafc' },
+  td: { padding: '0.78rem 0.85rem', color: '#334155' },
 };
